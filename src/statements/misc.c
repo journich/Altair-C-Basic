@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Tim Buchalka
+ * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
+ */
+
+/*
  * misc.c - Miscellaneous Statements
  *
  * Implements LET, DIM, DEF, POKE, CLEAR, NEW, RUN, and related statements.

@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Tim Buchalka
+ * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
+ */
+
+/*
  * mbf.h - Microsoft Binary Format (MBF) Floating Point
  *
  * This implements the exact floating-point format used by Altair 8K BASIC 4.0.

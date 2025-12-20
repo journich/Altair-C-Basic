@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Tim Buchalka
+ * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
+ */
+
+/*
  * string.c - String Functions
  *
  * Implements string BASIC functions: LEN, LEFT$, RIGHT$, MID$, ASC, CHR$,

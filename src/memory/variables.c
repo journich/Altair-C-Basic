@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Tim Buchalka
+ * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
+ */
+
+/*
  * variables.c - Variable Storage
  *
  * Implements variable lookup and storage matching the original 8K BASIC.

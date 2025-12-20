@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Tim Buchalka
+ * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
+ */
+
+/*
  * test_rnd.c - Unit tests for RND random number generator
  *
  * These tests verify that our RND implementation produces the

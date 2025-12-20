@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Tim Buchalka
+ * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
+ */
+
+/*
  * tokens.h - BASIC Token Definitions
  *
  * Token values from Altair 8K BASIC 4.0 (8kbas_src.mac lines 154-224)
@@ -104,6 +110,7 @@ typedef enum {
 #define TOK_FIRST       0x81
 #define TOK_LAST        0xC6
 #define TOK_IS_TOKEN(c) ((c) >= TOK_FIRST && (c) <= TOK_LAST)
+#define TOK_IS_KEYWORD(c) TOK_IS_TOKEN(c)  /* Alias for clarity */
 
 /* Statement tokens (can start a statement) */
 #define TOK_IS_STATEMENT(c) ((c) >= TOK_END && (c) <= TOK_NEW)

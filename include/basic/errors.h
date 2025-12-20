@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Tim Buchalka
+ * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
+ */
+
+/*
  * errors.h - BASIC Error Codes
  *
  * Error codes from Altair 8K BASIC 4.0 (8kbas_src.mac lines 276-313)

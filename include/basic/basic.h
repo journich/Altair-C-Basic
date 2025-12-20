@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Tim Buchalka
+ * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
+ */
+
+/*
  * basic.h - Altair 8K BASIC 4.0 Interpreter
  *
  * A 100% compatible C17 implementation of Microsoft's Altair 8K BASIC 4.0.
@@ -330,6 +336,16 @@ string_desc_t string_str(basic_state_t *state, mbf_t value);
 void string_garbage_collect(basic_state_t *state);
 uint16_t string_free(basic_state_t *state);
 void string_clear(basic_state_t *state);
+
+/*
+ * Program storage functions (memory/program.c).
+ */
+bool program_insert_line(basic_state_t *state, uint16_t line_num,
+                         const uint8_t *tokenized, size_t tokenized_len);
+const uint8_t *program_get_line(basic_state_t *state, uint16_t line_num, size_t *line_len);
+uint16_t program_first_line(basic_state_t *state);
+uint16_t program_next_line(basic_state_t *state, uint16_t line_num);
+void program_clear(basic_state_t *state);
 
 /*
  * Control flow statements (flow.c).

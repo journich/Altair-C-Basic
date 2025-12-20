@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Tim Buchalka
+ * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
+ */
+
+/*
  * mbf_trig.c - Transcendental functions (SIN, COS, TAN, ATN, LOG, EXP, SQR)
  *
  * TODO: Implement using the exact polynomial approximations from the original.

@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Tim Buchalka
+ * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
+ */
+
+/*
  * numeric.c - Numeric Functions
  *
  * Implements numeric BASIC functions: SGN, INT, ABS, SQR, etc.

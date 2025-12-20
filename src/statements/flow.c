@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2025 Tim Buchalka
+ * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
+ */
+
+/*
  * flow.c - Control Flow Statements
  *
  * Implements GOTO, GOSUB, FOR/NEXT, IF/THEN, and related statements.
