@@ -73,7 +73,7 @@ typedef struct {
 typedef struct {
     uint16_t line_number;   /* Line to return to */
     uint16_t text_ptr;      /* Position in line */
-    basic_variable_t *var;  /* Loop variable */
+    uint8_t *var;           /* Loop variable (pointer into memory) */
     mbf_t limit;            /* TO value */
     mbf_t step;             /* STEP value */
 } for_entry_t;
@@ -330,5 +330,80 @@ string_desc_t string_str(basic_state_t *state, mbf_t value);
 void string_garbage_collect(basic_state_t *state);
 uint16_t string_free(basic_state_t *state);
 void string_clear(basic_state_t *state);
+
+/*
+ * Control flow statements (flow.c).
+ */
+basic_error_t stmt_goto(basic_state_t *state, uint16_t line_num);
+basic_error_t stmt_gosub(basic_state_t *state, uint16_t line_num,
+                         uint16_t return_line, uint16_t return_ptr);
+basic_error_t stmt_return(basic_state_t *state);
+basic_error_t stmt_for(basic_state_t *state, const char *var_name,
+                       mbf_t initial, mbf_t limit, mbf_t step,
+                       uint16_t next_line, uint16_t next_ptr);
+basic_error_t stmt_next(basic_state_t *state, const char *var_name, bool *continue_loop);
+bool stmt_if_eval(mbf_t condition);
+basic_error_t stmt_end(basic_state_t *state);
+basic_error_t stmt_stop(basic_state_t *state, uint16_t line, uint16_t ptr);
+basic_error_t stmt_cont(basic_state_t *state);
+basic_error_t stmt_on_goto(basic_state_t *state, int value,
+                           uint16_t *lines, int num_lines);
+basic_error_t stmt_on_gosub(basic_state_t *state, int value,
+                            uint16_t *lines, int num_lines,
+                            uint16_t return_line, uint16_t return_ptr);
+basic_error_t stmt_pop(basic_state_t *state);
+void stmt_clear_stacks(basic_state_t *state);
+
+/*
+ * I/O statements (io.c).
+ */
+void io_putchar(basic_state_t *state, char ch);
+void io_print_string(basic_state_t *state, const char *str, size_t len);
+void io_print_cstring(basic_state_t *state, const char *str);
+void io_newline(basic_state_t *state);
+void io_print_number(basic_state_t *state, mbf_t value);
+void io_tab(basic_state_t *state, int column);
+void io_spc(basic_state_t *state, int count);
+bool io_input_line(basic_state_t *state, char *buf, size_t bufsize, size_t *len);
+size_t io_parse_number(const char *str, mbf_t *value);
+void io_data_init(basic_state_t *state);
+basic_error_t stmt_restore(basic_state_t *state);
+basic_error_t stmt_restore_line(basic_state_t *state, uint16_t line_num);
+basic_error_t io_read_numeric(basic_state_t *state, mbf_t *value);
+basic_error_t io_read_string(basic_state_t *state, string_desc_t *value);
+basic_error_t stmt_null(basic_state_t *state, int count);
+basic_error_t stmt_width(basic_state_t *state, int width);
+int io_pos(basic_state_t *state);
+
+/*
+ * Miscellaneous statements (misc.c).
+ */
+basic_error_t stmt_let_numeric(basic_state_t *state, const char *var_name, mbf_t value);
+basic_error_t stmt_let_string(basic_state_t *state, const char *var_name, string_desc_t value);
+basic_error_t stmt_let_array_numeric(basic_state_t *state, const char *arr_name,
+                                      int idx1, int idx2, mbf_t value);
+basic_error_t stmt_let_array_string(basic_state_t *state, const char *arr_name,
+                                     int idx1, int idx2, string_desc_t value);
+basic_error_t stmt_dim(basic_state_t *state, const char *arr_name, int dim1, int dim2);
+basic_error_t stmt_def_fn(basic_state_t *state, char fn_name,
+                          uint16_t line, uint16_t ptr);
+basic_error_t stmt_fn_lookup(basic_state_t *state, char fn_name,
+                             uint16_t *line, uint16_t *ptr);
+basic_error_t stmt_poke(basic_state_t *state, uint16_t address, uint8_t value);
+uint8_t stmt_peek(basic_state_t *state, uint16_t address);
+basic_error_t stmt_clear(basic_state_t *state, int string_space);
+basic_error_t stmt_new(basic_state_t *state);
+basic_error_t stmt_run(basic_state_t *state, uint16_t start_line);
+basic_error_t stmt_rem(void);
+basic_error_t stmt_swap_numeric(basic_state_t *state,
+                                const char *var1, const char *var2);
+basic_error_t stmt_swap_string(basic_state_t *state,
+                               const char *var1, const char *var2);
+uint8_t stmt_inp(basic_state_t *state, uint8_t port);
+basic_error_t stmt_out(basic_state_t *state, uint8_t port, uint8_t value);
+basic_error_t stmt_wait(basic_state_t *state, uint8_t port, uint8_t mask, uint8_t xor_val);
+mbf_t stmt_usr(basic_state_t *state, mbf_t arg);
+int32_t stmt_fre(basic_state_t *state);
+basic_error_t stmt_randomize(basic_state_t *state, mbf_t seed);
 
 #endif /* BASIC8K_BASIC_H */
