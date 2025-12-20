@@ -133,6 +133,7 @@ void basic_reset(basic_state_t *state) {
     state->var_start = state->program_end;
     state->array_start = state->var_start;
     state->string_start = state->string_end;
+    state->var_count_ = 0;
 
     /* Reset stacks */
     state->for_sp = 0;

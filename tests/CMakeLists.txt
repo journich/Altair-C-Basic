@@ -133,6 +133,10 @@ add_executable(test_parser unit/test_parser.c)
 target_link_libraries(test_parser PRIVATE basic8k_core test_harness)
 add_test(NAME Parser_Tests COMMAND test_parser)
 
+add_executable(test_memory unit/test_memory.c)
+target_link_libraries(test_memory PRIVATE basic8k_core test_harness)
+add_test(NAME Memory_Tests COMMAND test_memory)
+
 # Integration tests will be added later
 # add_executable(test_programs integration/test_programs.c)
 # target_link_libraries(test_programs PRIVATE basic8k_core test_harness)

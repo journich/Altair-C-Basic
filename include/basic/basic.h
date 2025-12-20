@@ -120,9 +120,12 @@ typedef struct {
     uint16_t program_start;         /* Start of program area */
     uint16_t program_end;           /* End of program / start of variables */
     uint16_t var_start;             /* Start of simple variables */
-    uint16_t array_start;           /* Start of arrays */
+    uint16_t array_start;           /* End of arrays / next allocation point */
     uint16_t string_start;          /* Bottom of string space */
     uint16_t string_end;            /* Top of string space (grows down) */
+
+    /* Variable tracking */
+    uint16_t var_count_;            /* Number of simple variables */
 
     /* Execution state */
     uint16_t current_line;          /* Current line number (0xFFFF = direct) */
@@ -273,5 +276,59 @@ mbf_t eval_expression(basic_state_t *state, const uint8_t *text, size_t len,
 const char *eval_string_expression(basic_state_t *state, const uint8_t *text,
                                    size_t len, size_t *consumed,
                                    basic_error_t *error);
+
+/*
+ * Variable functions.
+ */
+bool var_is_string(const char *name);
+uint8_t *var_find(basic_state_t *state, const char *name);
+uint8_t *var_create(basic_state_t *state, const char *name);
+uint8_t *var_get_or_create(basic_state_t *state, const char *name);
+mbf_t var_get_numeric(basic_state_t *state, const char *name);
+bool var_set_numeric(basic_state_t *state, const char *name, mbf_t value);
+string_desc_t var_get_string(basic_state_t *state, const char *name);
+bool var_set_string(basic_state_t *state, const char *name, string_desc_t desc);
+void var_clear_all(basic_state_t *state);
+int var_count(basic_state_t *state);
+
+/*
+ * Array functions.
+ */
+uint8_t *array_find(basic_state_t *state, const char *name);
+uint8_t *array_create(basic_state_t *state, const char *name, int dim1, int dim2);
+uint8_t *array_get_element(basic_state_t *state, const char *name,
+                           int index1, int index2);
+mbf_t array_get_numeric(basic_state_t *state, const char *name,
+                        int index1, int index2);
+bool array_set_numeric(basic_state_t *state, const char *name,
+                       int index1, int index2, mbf_t value);
+string_desc_t array_get_string(basic_state_t *state, const char *name,
+                               int index1, int index2);
+bool array_set_string(basic_state_t *state, const char *name,
+                      int index1, int index2, string_desc_t desc);
+void array_clear_all(basic_state_t *state);
+
+/*
+ * String space functions.
+ */
+void string_init(basic_state_t *state);
+uint16_t string_alloc(basic_state_t *state, uint8_t length);
+string_desc_t string_create(basic_state_t *state, const char *str);
+string_desc_t string_create_len(basic_state_t *state, const char *data, uint8_t length);
+const char *string_get_data(basic_state_t *state, string_desc_t desc);
+string_desc_t string_copy(basic_state_t *state, string_desc_t src);
+string_desc_t string_concat(basic_state_t *state, string_desc_t a, string_desc_t b);
+int string_compare(basic_state_t *state, string_desc_t a, string_desc_t b);
+string_desc_t string_left(basic_state_t *state, string_desc_t str, uint8_t n);
+string_desc_t string_right(basic_state_t *state, string_desc_t str, uint8_t n);
+string_desc_t string_mid(basic_state_t *state, string_desc_t str, uint8_t start, uint8_t n);
+uint8_t string_len(string_desc_t str);
+uint8_t string_asc(basic_state_t *state, string_desc_t str);
+string_desc_t string_chr(basic_state_t *state, uint8_t ch);
+mbf_t string_val(basic_state_t *state, string_desc_t str);
+string_desc_t string_str(basic_state_t *state, mbf_t value);
+void string_garbage_collect(basic_state_t *state);
+uint16_t string_free(basic_state_t *state);
+void string_clear(basic_state_t *state);
 
 #endif /* BASIC8K_BASIC_H */
