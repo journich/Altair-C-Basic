@@ -406,4 +406,42 @@ mbf_t stmt_usr(basic_state_t *state, mbf_t arg);
 int32_t stmt_fre(basic_state_t *state);
 basic_error_t stmt_randomize(basic_state_t *state, mbf_t seed);
 
+/*
+ * Numeric functions (functions/numeric.c).
+ */
+mbf_t fn_sgn(mbf_t value);
+mbf_t fn_int(mbf_t value);
+mbf_t fn_abs(mbf_t value);
+mbf_t fn_sqr(mbf_t value);
+mbf_t fn_exp(mbf_t value);
+mbf_t fn_log(mbf_t value);
+mbf_t fn_sin(mbf_t value);
+mbf_t fn_cos(mbf_t value);
+mbf_t fn_tan(mbf_t value);
+mbf_t fn_atn(mbf_t value);
+mbf_t fn_rnd(basic_state_t *state, mbf_t arg);
+mbf_t fn_peek(basic_state_t *state, mbf_t address);
+mbf_t fn_fre(basic_state_t *state, mbf_t dummy);
+mbf_t fn_pos(basic_state_t *state, mbf_t dummy);
+mbf_t fn_usr(basic_state_t *state, mbf_t arg);
+mbf_t fn_inp(basic_state_t *state, mbf_t port);
+
+/*
+ * String functions (functions/string.c).
+ */
+mbf_t fn_len(string_desc_t str);
+string_desc_t fn_left(basic_state_t *state, string_desc_t str, mbf_t n);
+string_desc_t fn_right(basic_state_t *state, string_desc_t str, mbf_t n);
+string_desc_t fn_mid(basic_state_t *state, string_desc_t str, mbf_t start, mbf_t n);
+mbf_t fn_asc(basic_state_t *state, string_desc_t str);
+string_desc_t fn_chr(basic_state_t *state, mbf_t code);
+string_desc_t fn_str(basic_state_t *state, mbf_t value);
+mbf_t fn_val(basic_state_t *state, string_desc_t str);
+mbf_t fn_instr(basic_state_t *state, int start,
+               string_desc_t main_str, string_desc_t search_str);
+string_desc_t fn_space(basic_state_t *state, mbf_t n);
+string_desc_t fn_string(basic_state_t *state, mbf_t n, uint8_t ch);
+string_desc_t fn_hex(basic_state_t *state, mbf_t value);
+string_desc_t fn_oct(basic_state_t *state, mbf_t value);
+
 #endif /* BASIC8K_BASIC_H */

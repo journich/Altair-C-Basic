@@ -115,6 +115,14 @@ mbf_t mbf_log(mbf_t a);     /* LOG - natural logarithm */
 mbf_t mbf_exp(mbf_t a);     /* EXP - e^x */
 
 /*
+ * IEEE Double Conversion (for transcendentals via C library)
+ * Note: These are used for SIN/COS/TAN/ATN/LOG/EXP/SQR where exact
+ * bit-for-bit matching isn't required and IEEE is acceptable.
+ */
+double mbf_to_double(mbf_t a);
+mbf_t mbf_from_double(double x);
+
+/*
  * Internal helper functions (exposed for testing)
  */
 
@@ -137,7 +145,7 @@ typedef enum {
     MBF_OVERFLOW,
     MBF_UNDERFLOW,
     MBF_DIV_ZERO,
-    MBF_DOMAIN_ERROR
+    MBF_DOMAIN         /* Domain error (e.g., SQR of negative, LOG of zero) */
 } mbf_error_t;
 
 /* Get/clear/set last error */
