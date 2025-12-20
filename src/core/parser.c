@@ -345,25 +345,56 @@ static mbf_t parse_primary(parse_state_t *ps) {
         return parse_function(ps, c);
     }
 
-    /* Variable - for now just return 0 */
-    /* TODO: implement variable lookup */
+    /* Variable lookup */
     if (isalpha(c)) {
-        /* Skip variable name */
-        while (ps->pos < ps->len && (isalnum(peek(ps)) || peek(ps) == '$')) {
-            consume(ps);
+        char var_name[3] = {0};
+        var_name[0] = (char)consume(ps);
+
+        /* Second character of variable name */
+        if (ps->pos < ps->len && isalnum(peek(ps))) {
+            var_name[1] = (char)consume(ps);
         }
+
+        /* Check for string variable (ends with $) - not handled for numeric expressions */
+        if (peek(ps) == '$') {
+            consume(ps);
+            /* String variable in numeric context - return 0 */
+            return MBF_ZERO;
+        }
+
         /* Check for array subscript */
         if (peek(ps) == '(') {
-            /* Skip array subscript for now */
-            int depth = 1;
-            consume(ps);
-            while (depth > 0 && ps->pos < ps->len) {
-                c = consume(ps);
-                if (c == '(') depth++;
-                else if (c == ')') depth--;
+            consume(ps);  /* Consume ( */
+
+            /* Parse first index */
+            mbf_t idx1_val = parse_expression(ps);
+            bool overflow;
+            int idx1 = mbf_to_int16(idx1_val, &overflow);
+
+            int idx2 = 0;
+            if (peek(ps) == ',') {
+                consume(ps);
+                mbf_t idx2_val = parse_expression(ps);
+                idx2 = mbf_to_int16(idx2_val, &overflow);
             }
+
+            if (!expect(ps, ')')) {
+                ps->error = ERR_SN;
+                return MBF_ZERO;
+            }
+
+            /* Look up array element */
+            if (ps->basic) {
+                return array_get_numeric(ps->basic, var_name, idx1, idx2);
+            }
+            return MBF_ZERO;
         }
-        return MBF_ZERO;  /* TODO: look up variable value */
+
+        /* Simple variable lookup */
+        if (ps->basic) {
+            return var_get_numeric(ps->basic, var_name);
+        }
+        return MBF_ZERO;
     }
 
     /* Unknown - return 0 and set error */

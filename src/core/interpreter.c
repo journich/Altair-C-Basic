@@ -7,19 +7,21 @@
 /*
  * interpreter.c - Main BASIC interpreter
  *
- * TODO: Implement the main interpreter loop and command handling.
+ * Implements the main command loop, statement execution, and program control.
  */
 
 #include "basic/basic.h"
 #include "basic/errors.h"
+#include "basic/tokens.h"
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 /* Error state */
 error_context_t g_last_error = {0};
 
 /*
- * Error code strings.
+ * Error code strings - exact match to original BASIC.
  */
 const char ERROR_CODES[][3] = {
     "??",  /* ERR_NONE */
@@ -108,12 +110,15 @@ basic_state_t *basic_init(const basic_config_t *config) {
     rnd_init(&state->rnd);
 
     /* Set up memory regions */
+    /* Note: max addressable memory is 65535 (uint16_t max) */
+    uint16_t max_addr = (mem_size > 65535) ? 65535 : (uint16_t)mem_size;
     state->program_start = 0;
     state->program_end = 0;
     state->var_start = 0;
     state->array_start = 0;
-    state->string_end = (uint16_t)mem_size;
+    state->string_end = max_addr;
     state->string_start = state->string_end;
+    state->var_count_ = 0;
 
     return state;
 }
@@ -149,8 +154,15 @@ void basic_reset(basic_state_t *state) {
     state->running = false;
     state->can_continue = false;
 
+    /* Clear user functions */
+    memset(state->user_funcs, 0, sizeof(state->user_funcs));
+
     /* Reinitialize RND */
     rnd_init(&state->rnd);
+
+    /* Reset DATA pointer */
+    state->data_line = 0;
+    state->data_ptr = 0;
 }
 
 /*
@@ -189,67 +201,1075 @@ void basic_print_error(basic_state_t *state, basic_error_t err, uint16_t line) {
     if (!state || !state->output) return;
 
     fprintf(state->output, "?%s ERROR", error_code_string(err));
-    if (line != 0xFFFF) {
+    if (line != 0xFFFF && line != 0) {
         fprintf(state->output, " IN %u", line);
     }
     fprintf(state->output, "\n");
 }
 
 /*
- * Run interactive interpreter.
- * TODO: Implement full interactive loop.
+ * Parse a line number from the start of a string.
+ * Returns the line number, or 0 if none found.
+ * Updates *pos to point past the line number.
  */
-void basic_run_interactive(basic_state_t *state) {
-    if (!state) return;
-    basic_print_banner(state);
-    basic_print_ok(state);
-    /* TODO: implement command loop */
+static uint16_t parse_line_number(const char *line, size_t *pos) {
+    size_t i = *pos;
+
+    /* Skip leading whitespace */
+    while (line[i] == ' ') i++;
+
+    /* Check for digits */
+    if (!isdigit((unsigned char)line[i])) {
+        return 0;
+    }
+
+    /* Parse number */
+    uint32_t num = 0;
+    while (isdigit((unsigned char)line[i])) {
+        num = num * 10 + (uint32_t)(line[i] - '0');
+        i++;
+        if (num > 65529) {
+            /* Line number too large */
+            return 0;
+        }
+    }
+
+    *pos = i;
+    return (uint16_t)num;
 }
 
 /*
- * Execute a line.
- * TODO: Implement statement execution.
+ * Execute a direct statement (one without a line number).
+ * Returns error code.
+ */
+static basic_error_t execute_statement(basic_state_t *state,
+                                       const uint8_t *tokenized, size_t len);
+
+/*
+ * Execute a single line of BASIC (direct mode).
+ * If the line has a line number, it's stored in the program.
+ * Otherwise, it's executed immediately.
  */
 bool basic_execute_line(basic_state_t *state, const char *line) {
-    (void)state;
-    (void)line;
+    if (!state || !line) return false;
+
+    /* Skip leading whitespace */
+    size_t pos = 0;
+    while (line[pos] == ' ') pos++;
+
+    /* Check for empty line */
+    if (line[pos] == '\0' || line[pos] == '\n' || line[pos] == '\r') {
+        return true;
+    }
+
+    /* Check for line number */
+    uint16_t line_num = parse_line_number(line, &pos);
+
+    /* Tokenize the line */
+    uint8_t tokenized[256];
+    size_t tok_len = tokenize_line(line + pos, tokenized, sizeof(tokenized));
+
+    if (line_num > 0) {
+        /* Store in program */
+        if (tok_len == 0 || (tok_len == 1 && tokenized[0] == '\0')) {
+            /* Empty line - delete it */
+            program_insert_line(state, line_num, NULL, 0);
+        } else {
+            if (!program_insert_line(state, line_num, tokenized, tok_len)) {
+                basic_print_error(state, ERR_OM, 0xFFFF);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /* Direct execution */
+    state->current_line = 0xFFFF;  /* Direct mode */
+
+    basic_error_t err = execute_statement(state, tokenized, tok_len);
+    if (err != ERR_NONE) {
+        basic_print_error(state, err, 0xFFFF);
+        return false;
+    }
+
     return true;
 }
 
 /*
+ * Execute a statement from tokenized text.
+ */
+static basic_error_t execute_statement(basic_state_t *state,
+                                       const uint8_t *tokenized, size_t len) {
+    if (!state || !tokenized || len == 0) return ERR_NONE;
+
+    size_t pos = 0;
+
+    /* Skip leading whitespace */
+    while (pos < len && tokenized[pos] == ' ') pos++;
+
+    if (pos >= len || tokenized[pos] == '\0') {
+        return ERR_NONE;
+    }
+
+    uint8_t cmd = tokenized[pos];
+
+    /* Handle statements */
+    switch (cmd) {
+        case TOK_REM:
+            /* Comment - skip rest of line */
+            return ERR_NONE;
+
+        case TOK_PRINT:
+        case '?': {
+            /* PRINT statement */
+            pos++;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            bool need_newline = true;
+
+            while (pos < len && tokenized[pos] != '\0' && tokenized[pos] != ':') {
+                uint8_t ch = tokenized[pos];
+
+                if (ch == '"') {
+                    /* String literal */
+                    pos++;
+                    while (pos < len && tokenized[pos] != '"' && tokenized[pos] != '\0') {
+                        io_putchar(state, (char)tokenized[pos]);
+                        pos++;
+                    }
+                    if (pos < len && tokenized[pos] == '"') pos++;
+                    need_newline = true;
+                } else if (ch == ';') {
+                    /* Semicolon - no space */
+                    pos++;
+                    need_newline = false;
+                } else if (ch == ',') {
+                    /* Comma - tab to next zone */
+                    int col = state->terminal_x;
+                    int next_zone = ((col / 14) + 1) * 14;
+                    while (state->terminal_x < next_zone) {
+                        io_putchar(state, ' ');
+                    }
+                    pos++;
+                    need_newline = false;
+                } else if (ch == TOK_TAB) {
+                    /* TAB function */
+                    pos++;
+                    if (pos < len && tokenized[pos] == '(') {
+                        pos++;
+                        basic_error_t err;
+                        size_t consumed;
+                        mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                                    &consumed, &err);
+                        if (err != ERR_NONE) return err;
+                        pos += consumed;
+                        if (pos < len && tokenized[pos] == ')') pos++;
+
+                        bool overflow;
+                        int col = mbf_to_int16(val, &overflow);
+                        if (!overflow && col >= 1) {
+                            io_tab(state, col);
+                        }
+                    }
+                    need_newline = true;
+                } else if (ch == TOK_SPC) {
+                    /* SPC function */
+                    pos++;
+                    if (pos < len && tokenized[pos] == '(') {
+                        pos++;
+                        basic_error_t err;
+                        size_t consumed;
+                        mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                                    &consumed, &err);
+                        if (err != ERR_NONE) return err;
+                        pos += consumed;
+                        if (pos < len && tokenized[pos] == ')') pos++;
+
+                        bool overflow;
+                        int count = mbf_to_int16(val, &overflow);
+                        if (!overflow && count >= 0) {
+                            io_spc(state, count);
+                        }
+                    }
+                    need_newline = true;
+                } else if (ch == ' ') {
+                    pos++;
+                } else {
+                    /* Expression */
+                    basic_error_t err;
+                    size_t consumed;
+                    mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                                &consumed, &err);
+                    if (err != ERR_NONE) return err;
+                    pos += consumed;
+
+                    io_print_number(state, val);
+                    need_newline = true;
+                }
+            }
+
+            if (need_newline) {
+                io_newline(state);
+            }
+            return ERR_NONE;
+        }
+
+        case TOK_LIST: {
+            /* LIST statement */
+            pos++;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            uint16_t start = 0, end = 0;
+
+            if (pos < len && isdigit(tokenized[pos])) {
+                /* Parse start line */
+                while (pos < len && isdigit(tokenized[pos])) {
+                    start = start * 10 + (uint16_t)(tokenized[pos] - '0');
+                    pos++;
+                }
+            }
+
+            if (pos < len && tokenized[pos] == '-') {
+                pos++;
+                if (pos < len && isdigit(tokenized[pos])) {
+                    while (pos < len && isdigit(tokenized[pos])) {
+                        end = end * 10 + (uint16_t)(tokenized[pos] - '0');
+                        pos++;
+                    }
+                } else {
+                    end = 0xFFFF;
+                }
+            } else if (start > 0) {
+                end = start;
+            }
+
+            basic_list_program(state, start, end);
+            return ERR_NONE;
+        }
+
+        case TOK_RUN: {
+            /* RUN statement */
+            pos++;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            uint16_t start_line = 0;
+            if (pos < len && isdigit(tokenized[pos])) {
+                while (pos < len && isdigit(tokenized[pos])) {
+                    start_line = start_line * 10 + (uint16_t)(tokenized[pos] - '0');
+                    pos++;
+                }
+            }
+
+            basic_error_t err = stmt_run(state, start_line);
+            if (err != ERR_NONE) return err;
+
+            /* Execute the program */
+            basic_run_program(state);
+            return ERR_NONE;
+        }
+
+        case TOK_NEW:
+            stmt_new(state);
+            return ERR_NONE;
+
+        case TOK_CLEAR: {
+            pos++;
+            int string_space = 0;
+            if (pos < len && isdigit(tokenized[pos])) {
+                while (pos < len && isdigit(tokenized[pos])) {
+                    string_space = string_space * 10 + (tokenized[pos] - '0');
+                    pos++;
+                }
+            }
+            return stmt_clear(state, string_space);
+        }
+
+        case TOK_CONT:
+            return stmt_cont(state);
+
+        case TOK_END:
+            return stmt_end(state);
+
+        case TOK_STOP:
+            return stmt_stop(state, state->current_line, state->text_ptr);
+
+        case TOK_RESTORE: {
+            pos++;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            if (pos < len && isdigit(tokenized[pos])) {
+                uint16_t line_num = 0;
+                while (pos < len && isdigit(tokenized[pos])) {
+                    line_num = line_num * 10 + (uint16_t)(tokenized[pos] - '0');
+                    pos++;
+                }
+                return stmt_restore_line(state, line_num);
+            }
+            return stmt_restore(state);
+        }
+
+        case TOK_GOTO: {
+            pos++;
+            basic_error_t err;
+            size_t consumed;
+            mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                        &consumed, &err);
+            if (err != ERR_NONE) return err;
+
+            bool overflow;
+            int16_t line_num = mbf_to_int16(val, &overflow);
+            if (overflow || line_num < 0) return ERR_UL;
+
+            return stmt_goto(state, (uint16_t)line_num);
+        }
+
+        case TOK_GOSUB: {
+            pos++;
+            basic_error_t err;
+            size_t consumed;
+            mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                        &consumed, &err);
+            if (err != ERR_NONE) return err;
+
+            bool overflow;
+            int16_t line_num = mbf_to_int16(val, &overflow);
+            if (overflow || line_num < 0) return ERR_UL;
+
+            /* Calculate return position (after this statement) */
+            uint16_t return_ptr;
+            const uint8_t *stmt_ptr = state->memory + state->text_ptr;
+            while (*stmt_ptr != '\0' && *stmt_ptr != ':') {
+                stmt_ptr++;
+            }
+
+            if (*stmt_ptr == ':') {
+                /* More statements on this line - return to next statement */
+                return_ptr = (uint16_t)(stmt_ptr + 1 - state->memory);
+            } else {
+                /* End of line - find next line */
+                uint8_t *line_ptr = state->memory + state->program_start;
+                uint8_t *end_ptr = state->memory + state->program_end;
+                return_ptr = state->text_ptr;  /* Default if not found */
+
+                while (line_ptr < end_ptr) {
+                    uint16_t link = (uint16_t)(line_ptr[0] | (line_ptr[1] << 8));
+                    uint8_t *line_text = line_ptr + 4;
+                    uint8_t *line_end = (link > 0) ? state->memory + link : end_ptr;
+
+                    if (state->text_ptr >= (uint16_t)(line_text - state->memory) &&
+                        state->text_ptr < (uint16_t)(line_end - state->memory)) {
+                        if (link > 0) {
+                            return_ptr = link + 4;
+                        } else {
+                            return_ptr = state->program_end;
+                        }
+                        break;
+                    }
+
+                    if (link == 0) break;
+                    line_ptr = state->memory + link;
+                }
+            }
+
+            return stmt_gosub(state, (uint16_t)line_num,
+                              state->current_line, return_ptr);
+        }
+
+        case TOK_RETURN:
+            return stmt_return(state);
+
+        case TOK_FOR: {
+            /* FOR var = init TO limit [STEP step] */
+            pos++;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            /* Get variable name */
+            char var_name[3] = {0};
+            if (pos < len && isalpha(tokenized[pos])) {
+                var_name[0] = (char)tokenized[pos++];
+                if (pos < len && isalnum(tokenized[pos])) {
+                    var_name[1] = (char)tokenized[pos++];
+                }
+            } else {
+                return ERR_SN;
+            }
+
+            /* Expect = */
+            while (pos < len && tokenized[pos] == ' ') pos++;
+            if (pos >= len || tokenized[pos] != TOK_EQ) {
+                return ERR_SN;
+            }
+            pos++;
+
+            /* Parse initial value */
+            basic_error_t err;
+            size_t consumed;
+            mbf_t initial = eval_expression(state, tokenized + pos, len - pos,
+                                            &consumed, &err);
+            if (err != ERR_NONE) return err;
+            pos += consumed;
+
+            /* Expect TO */
+            while (pos < len && tokenized[pos] == ' ') pos++;
+            if (pos >= len || tokenized[pos] != TOK_TO) {
+                return ERR_SN;
+            }
+            pos++;
+
+            /* Parse limit */
+            mbf_t limit = eval_expression(state, tokenized + pos, len - pos,
+                                          &consumed, &err);
+            if (err != ERR_NONE) return err;
+            pos += consumed;
+
+            /* Check for STEP */
+            mbf_t step = MBF_ONE;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+            if (pos < len && tokenized[pos] == TOK_STEP) {
+                pos++;
+                step = eval_expression(state, tokenized + pos, len - pos,
+                                       &consumed, &err);
+                if (err != ERR_NONE) return err;
+                pos += consumed;
+            }
+
+            /* The loop body starts after this statement */
+            /* We need to find the position after the current statement */
+            uint16_t next_line = state->current_line;
+            uint16_t next_ptr = state->text_ptr;
+
+            /* Check if there are more statements on this line */
+            const uint8_t *stmt_ptr = state->memory + state->text_ptr;
+            while (*stmt_ptr != '\0' && *stmt_ptr != ':') {
+                stmt_ptr++;
+            }
+
+            if (*stmt_ptr == ':') {
+                /* More statements on this line - return to next statement */
+                next_ptr = (uint16_t)(stmt_ptr + 1 - state->memory);
+            } else {
+                /* End of line - find next line */
+                /* Go back to find line start (link bytes) */
+                uint8_t *line_ptr = state->memory + state->program_start;
+                uint8_t *end_ptr = state->memory + state->program_end;
+
+                while (line_ptr < end_ptr) {
+                    uint16_t link = (uint16_t)(line_ptr[0] | (line_ptr[1] << 8));
+                    uint16_t line_num = (uint16_t)(line_ptr[2] | (line_ptr[3] << 8));
+                    uint8_t *line_text = line_ptr + 4;
+                    uint8_t *line_end = (link > 0) ? state->memory + link : end_ptr;
+
+                    if (state->text_ptr >= (uint16_t)(line_text - state->memory) &&
+                        state->text_ptr < (uint16_t)(line_end - state->memory)) {
+                        /* Found current line - get next line's text start */
+                        if (link > 0) {
+                            next_line = (uint16_t)(state->memory[link + 2] |
+                                                   (state->memory[link + 3] << 8));
+                            next_ptr = link + 4;
+                        } else {
+                            /* No next line - shouldn't happen in valid FOR loop */
+                            next_ptr = state->text_ptr;
+                        }
+                        break;
+                    }
+                    (void)line_num;
+
+                    if (link == 0) break;
+                    line_ptr = state->memory + link;
+                }
+            }
+
+            return stmt_for(state, var_name, initial, limit, step, next_line, next_ptr);
+        }
+
+        case TOK_NEXT: {
+            /* NEXT [var] */
+            pos++;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            char var_name[3] = {0};
+            if (pos < len && isalpha(tokenized[pos])) {
+                var_name[0] = (char)tokenized[pos++];
+                if (pos < len && isalnum(tokenized[pos])) {
+                    var_name[1] = (char)tokenized[pos++];
+                }
+            }
+
+            bool continue_loop;
+            basic_error_t err = stmt_next(state, var_name, &continue_loop);
+            if (err != ERR_NONE) return err;
+
+            /* If loop continues, stmt_next has already set text_ptr */
+            /* If loop done, continue to next statement */
+            return ERR_NONE;
+        }
+
+        case TOK_IF: {
+            /* IF expr THEN statements / line_num */
+            pos++;
+
+            /* Evaluate condition */
+            basic_error_t err;
+            size_t consumed;
+            mbf_t condition = eval_expression(state, tokenized + pos, len - pos,
+                                              &consumed, &err);
+            if (err != ERR_NONE) return err;
+            pos += consumed;
+
+            /* Expect THEN */
+            while (pos < len && tokenized[pos] == ' ') pos++;
+            if (pos >= len || tokenized[pos] != TOK_THEN) {
+                return ERR_SN;
+            }
+            pos++;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            /* If condition is false, skip rest of line */
+            if (!stmt_if_eval(condition)) {
+                /* Skip to end of line - don't execute THEN clause */
+                return ERR_NONE;
+            }
+
+            /* Condition is true - check if THEN is followed by line number */
+            if (pos < len && isdigit(tokenized[pos])) {
+                /* GOTO the line number */
+                uint16_t line_num = 0;
+                while (pos < len && isdigit(tokenized[pos])) {
+                    line_num = line_num * 10 + (uint16_t)(tokenized[pos] - '0');
+                    pos++;
+                }
+                return stmt_goto(state, line_num);
+            }
+
+            /* Execute the THEN clause as a statement */
+            return execute_statement(state, tokenized + pos, len - pos);
+        }
+
+        case TOK_INPUT: {
+            /* INPUT ["prompt";] var[,var...] */
+            pos++;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            /* Check for prompt string */
+            const char *prompt = "? ";
+            if (pos < len && tokenized[pos] == '"') {
+                pos++;
+                size_t prompt_start = pos;
+                while (pos < len && tokenized[pos] != '"') {
+                    io_putchar(state, (char)tokenized[pos]);
+                    pos++;
+                }
+                if (pos < len && tokenized[pos] == '"') pos++;
+                if (pos < len && tokenized[pos] == ';') {
+                    pos++;
+                    prompt = "? ";
+                } else if (pos < len && tokenized[pos] == ',') {
+                    pos++;
+                    prompt = "";  /* No question mark */
+                }
+                (void)prompt_start;
+            }
+
+            /* Print prompt */
+            io_print_cstring(state, prompt);
+
+            /* Read input line */
+            char input_buf[256];
+            size_t input_len;
+            if (!io_input_line(state, input_buf, sizeof(input_buf), &input_len)) {
+                return ERR_NONE;  /* Ctrl-C pressed */
+            }
+
+            /* Parse variable and assign value */
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            if (pos < len && isalpha(tokenized[pos])) {
+                char var_name[3] = {0};
+                var_name[0] = (char)tokenized[pos++];
+                if (pos < len && isalnum(tokenized[pos])) {
+                    var_name[1] = (char)tokenized[pos++];
+                }
+
+                /* Parse value from input */
+                mbf_t value;
+                size_t consumed = io_parse_number(input_buf, &value);
+                if (consumed == 0) {
+                    value = MBF_ZERO;
+                }
+
+                return stmt_let_numeric(state, var_name, value);
+            }
+            return ERR_SN;
+        }
+
+        case TOK_READ: {
+            /* READ var[,var...] */
+            pos++;
+
+            while (pos < len) {
+                while (pos < len && tokenized[pos] == ' ') pos++;
+
+                if (pos >= len || tokenized[pos] == ':' || tokenized[pos] == '\0') {
+                    break;
+                }
+
+                if (isalpha(tokenized[pos])) {
+                    char var_name[3] = {0};
+                    var_name[0] = (char)tokenized[pos++];
+                    if (pos < len && isalnum(tokenized[pos])) {
+                        var_name[1] = (char)tokenized[pos++];
+                    }
+
+                    /* Read value from DATA */
+                    mbf_t value;
+                    basic_error_t err = io_read_numeric(state, &value);
+                    if (err != ERR_NONE) return err;
+
+                    err = stmt_let_numeric(state, var_name, value);
+                    if (err != ERR_NONE) return err;
+                }
+
+                /* Skip comma between variables */
+                while (pos < len && tokenized[pos] == ' ') pos++;
+                if (pos < len && tokenized[pos] == ',') {
+                    pos++;
+                } else {
+                    break;
+                }
+            }
+            return ERR_NONE;
+        }
+
+        case TOK_DATA:
+            /* DATA is skipped during execution - only used by READ */
+            return ERR_NONE;
+
+        case TOK_DIM: {
+            /* DIM var(size)[,var(size)...] */
+            pos++;
+
+            while (pos < len) {
+                while (pos < len && tokenized[pos] == ' ') pos++;
+
+                if (pos >= len || tokenized[pos] == ':' || tokenized[pos] == '\0') {
+                    break;
+                }
+
+                if (isalpha(tokenized[pos])) {
+                    char var_name[3] = {0};
+                    var_name[0] = (char)tokenized[pos++];
+                    if (pos < len && isalnum(tokenized[pos])) {
+                        var_name[1] = (char)tokenized[pos++];
+                    }
+
+                    /* Expect ( */
+                    while (pos < len && tokenized[pos] == ' ') pos++;
+                    if (pos >= len || tokenized[pos] != '(') {
+                        return ERR_SN;
+                    }
+                    pos++;
+
+                    /* Parse first dimension */
+                    basic_error_t err;
+                    size_t consumed;
+                    mbf_t dim1_val = eval_expression(state, tokenized + pos, len - pos,
+                                                     &consumed, &err);
+                    if (err != ERR_NONE) return err;
+                    pos += consumed;
+
+                    bool overflow;
+                    int16_t dim1 = mbf_to_int16(dim1_val, &overflow);
+                    if (overflow || dim1 < 0) return ERR_BS;
+
+                    int16_t dim2 = 0;
+                    while (pos < len && tokenized[pos] == ' ') pos++;
+                    if (pos < len && tokenized[pos] == ',') {
+                        pos++;
+                        mbf_t dim2_val = eval_expression(state, tokenized + pos, len - pos,
+                                                         &consumed, &err);
+                        if (err != ERR_NONE) return err;
+                        pos += consumed;
+                        dim2 = mbf_to_int16(dim2_val, &overflow);
+                        if (overflow || dim2 < 0) return ERR_BS;
+                    }
+
+                    /* Expect ) */
+                    while (pos < len && tokenized[pos] == ' ') pos++;
+                    if (pos >= len || tokenized[pos] != ')') {
+                        return ERR_SN;
+                    }
+                    pos++;
+
+                    /* Dimension the array */
+                    /* Check if array already exists */
+                    if (array_find(state, var_name)) {
+                        return ERR_DD;  /* Double dimension */
+                    }
+                    uint8_t *arr = array_create(state, var_name, dim1,
+                                                dim2 > 0 ? dim2 : -1);
+                    if (!arr) return ERR_OM;  /* Out of memory */
+                }
+
+                /* Skip comma between dimensions */
+                while (pos < len && tokenized[pos] == ' ') pos++;
+                if (pos < len && tokenized[pos] == ',') {
+                    pos++;
+                } else {
+                    break;
+                }
+            }
+            return ERR_NONE;
+        }
+
+        case TOK_ON: {
+            /* ON expr GOTO/GOSUB line[,line...] */
+            pos++;
+
+            /* Evaluate selector expression */
+            basic_error_t err;
+            size_t consumed;
+            mbf_t selector = eval_expression(state, tokenized + pos, len - pos,
+                                             &consumed, &err);
+            if (err != ERR_NONE) return err;
+            pos += consumed;
+
+            bool overflow;
+            int16_t value = mbf_to_int16(selector, &overflow);
+            if (overflow) return ERR_FC;
+
+            /* Check for GOTO or GOSUB */
+            while (pos < len && tokenized[pos] == ' ') pos++;
+            bool is_gosub = false;
+            if (pos < len && tokenized[pos] == TOK_GOTO) {
+                pos++;
+            } else if (pos < len && tokenized[pos] == TOK_GOSUB) {
+                pos++;
+                is_gosub = true;
+            } else {
+                return ERR_SN;
+            }
+
+            /* Parse line numbers */
+            uint16_t lines[16];
+            int num_lines = 0;
+
+            while (pos < len && num_lines < 16) {
+                while (pos < len && tokenized[pos] == ' ') pos++;
+
+                if (pos >= len || !isdigit(tokenized[pos])) break;
+
+                uint16_t line_num = 0;
+                while (pos < len && isdigit(tokenized[pos])) {
+                    line_num = line_num * 10 + (uint16_t)(tokenized[pos] - '0');
+                    pos++;
+                }
+                lines[num_lines++] = line_num;
+
+                while (pos < len && tokenized[pos] == ' ') pos++;
+                if (pos < len && tokenized[pos] == ',') {
+                    pos++;
+                } else {
+                    break;
+                }
+            }
+
+            if (is_gosub) {
+                return stmt_on_gosub(state, value, lines, num_lines,
+                                     state->current_line, state->text_ptr);
+            } else {
+                return stmt_on_goto(state, value, lines, num_lines);
+            }
+        }
+
+        case TOK_DEF: {
+            /* DEF FNx(y) = expr - define user function */
+            /* For now, just skip - function definition is stored */
+            return ERR_NONE;
+        }
+
+        case TOK_POKE: {
+            pos++;
+            basic_error_t err;
+            size_t consumed;
+
+            mbf_t addr_val = eval_expression(state, tokenized + pos, len - pos,
+                                             &consumed, &err);
+            if (err != ERR_NONE) return err;
+            pos += consumed;
+
+            if (pos >= len || tokenized[pos] != ',') return ERR_SN;
+            pos++;
+
+            mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                        &consumed, &err);
+            if (err != ERR_NONE) return err;
+
+            bool overflow1, overflow2;
+            int16_t addr = mbf_to_int16(addr_val, &overflow1);
+            int16_t value = mbf_to_int16(val, &overflow2);
+
+            if (overflow1 || overflow2 || addr < 0 || value < 0 || value > 255) {
+                return ERR_FC;
+            }
+
+            return stmt_poke(state, (uint16_t)addr, (uint8_t)value);
+        }
+
+        default:
+            /* Check for variable assignment (LET is optional) */
+            if (isalpha(cmd) || cmd == TOK_LET) {
+                if (cmd == TOK_LET) pos++;
+
+                /* Skip spaces */
+                while (pos < len && tokenized[pos] == ' ') pos++;
+
+                /* Get variable name */
+                char var_name[3] = {0};
+                if (pos < len && isalpha(tokenized[pos])) {
+                    var_name[0] = (char)tokenized[pos++];
+                    if (pos < len && isalnum(tokenized[pos])) {
+                        var_name[1] = (char)tokenized[pos++];
+                    }
+                } else {
+                    return ERR_SN;
+                }
+
+                /* Check for string variable */
+                if (pos < len && tokenized[pos] == '$') {
+                    var_name[1] = '$';
+                    pos++;
+                }
+
+                /* Skip to = */
+                while (pos < len && tokenized[pos] == ' ') pos++;
+
+                if (pos >= len || tokenized[pos] != TOK_EQ) {
+                    return ERR_SN;
+                }
+                pos++;
+
+                /* Evaluate expression */
+                basic_error_t err;
+                size_t consumed;
+                mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                            &consumed, &err);
+                if (err != ERR_NONE) return err;
+
+                return stmt_let_numeric(state, var_name, val);
+            }
+
+            return ERR_SN;
+    }
+}
+
+/*
+ * Run the current program.
+ */
+void basic_run_program(basic_state_t *state) {
+    if (!state) return;
+
+    state->running = true;
+
+    while (state->running) {
+        /* Check if we're at a valid position */
+        if (state->text_ptr >= state->program_end) {
+            state->running = false;
+            break;
+        }
+
+        /* Get current line info */
+        uint8_t *line_start = NULL;
+        uint8_t *ptr = state->memory + state->program_start;
+        uint8_t *end = state->memory + state->program_end;
+
+        /* Find the line containing text_ptr */
+        while (ptr < end) {
+            uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
+            uint16_t line_num = (uint16_t)(ptr[2] | (ptr[3] << 8));
+            uint8_t *line_text = ptr + 4;
+            uint8_t *line_end = (link > 0) ? state->memory + link : end;
+
+            if (state->text_ptr >= (uint16_t)(line_text - state->memory) &&
+                state->text_ptr < (uint16_t)(line_end - state->memory)) {
+                state->current_line = line_num;
+                line_start = ptr;
+                break;
+            }
+
+            if (link == 0) break;
+            ptr = state->memory + link;
+        }
+
+        if (!line_start) {
+            state->running = false;
+            break;
+        }
+
+        /* Get the statement to execute */
+        uint8_t *text = state->memory + state->text_ptr;
+        size_t text_len = 0;
+
+        /* Find end of statement (: or null), but skip over strings */
+        bool in_string = false;
+        while (text[text_len] != '\0') {
+            if (text[text_len] == '"') {
+                in_string = !in_string;
+            } else if (text[text_len] == ':' && !in_string) {
+                break;
+            }
+            text_len++;
+        }
+
+        /* Save current position to detect flow control */
+        uint16_t saved_text_ptr = state->text_ptr;
+
+        /* Execute the statement */
+        basic_error_t err = execute_statement(state, text, text_len);
+
+        if (err != ERR_NONE) {
+            basic_print_error(state, err, state->current_line);
+            state->running = false;
+            state->can_continue = false;
+            break;
+        }
+
+        /* Check if execution was stopped by STOP/END or flow control */
+        if (!state->running) break;
+
+        /* Check if statement changed text_ptr (GOTO, GOSUB, NEXT, etc.) */
+        if (state->text_ptr != saved_text_ptr) {
+            /* Statement modified text_ptr - don't override it */
+            continue;
+        }
+
+        /* Move to next statement */
+        if (text[text_len] == ':') {
+            /* More statements on this line */
+            state->text_ptr += (uint16_t)(text_len + 1);
+        } else {
+            /* Move to next line */
+            uint16_t link = (uint16_t)(line_start[0] | (line_start[1] << 8));
+            if (link == 0) {
+                state->running = false;
+            } else {
+                state->text_ptr = link + 4;  /* Skip link and line number */
+            }
+        }
+    }
+}
+
+/*
+ * Run interactive interpreter.
+ */
+void basic_run_interactive(basic_state_t *state) {
+    if (!state) return;
+
+    basic_print_banner(state);
+    basic_print_ok(state);
+
+    char line[256];
+
+    while (1) {
+        /* Read a line */
+        if (!fgets(line, sizeof(line), state->input)) {
+            break;
+        }
+
+        /* Remove trailing newline */
+        size_t len = strlen(line);
+        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+            line[--len] = '\0';
+        }
+
+        /* Execute the line */
+        basic_execute_line(state, line);
+
+        /* Print OK if we're not running */
+        if (!state->running) {
+            basic_print_ok(state);
+        }
+    }
+}
+
+/*
  * Load program from file.
- * TODO: Implement file loading.
  */
 bool basic_load_file(basic_state_t *state, const char *filename) {
-    (void)state;
-    (void)filename;
-    return false;
+    if (!state || !filename) return false;
+
+    FILE *f = fopen(filename, "r");
+    if (!f) return false;
+
+    /* Clear existing program */
+    stmt_new(state);
+
+    char line[256];
+    while (fgets(line, sizeof(line), f)) {
+        /* Remove trailing newline */
+        size_t len = strlen(line);
+        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+            line[--len] = '\0';
+        }
+
+        /* Execute line (stores if it has line number) */
+        if (!basic_execute_line(state, line)) {
+            fclose(f);
+            return false;
+        }
+    }
+
+    fclose(f);
+    return true;
 }
 
 /*
  * Save program to file.
- * TODO: Implement file saving.
  */
 bool basic_save_file(basic_state_t *state, const char *filename) {
-    (void)state;
-    (void)filename;
-    return false;
+    if (!state || !filename) return false;
+
+    FILE *f = fopen(filename, "w");
+    if (!f) return false;
+
+    uint8_t *ptr = state->memory + state->program_start;
+    uint8_t *end = state->memory + state->program_end;
+
+    while (ptr < end) {
+        uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
+        uint16_t num = (uint16_t)(ptr[2] | (ptr[3] << 8));
+
+        /* Print line number */
+        fprintf(f, "%u ", num);
+
+        /* Detokenize and print */
+        const uint8_t *text = ptr + 4;
+        while (*text) {
+            uint8_t ch = *text++;
+
+            if (TOK_IS_KEYWORD(ch)) {
+                const char *kw = token_to_keyword(ch);
+                if (kw) fprintf(f, "%s", kw);
+            } else if (ch == '"') {
+                fputc('"', f);
+                while (*text && *text != '"') {
+                    fputc(*text++, f);
+                }
+                if (*text == '"') {
+                    fputc('"', f);
+                    text++;
+                }
+            } else {
+                fputc(ch, f);
+            }
+        }
+        fputc('\n', f);
+
+        if (link == 0) break;
+        ptr = state->memory + link;
+    }
+
+    fclose(f);
+    return true;
 }
 
-/*
- * Run program.
- * TODO: Implement program execution.
- */
-void basic_run_program(basic_state_t *state) {
-    (void)state;
-}
-
-/*
- * List program.
- * TODO: Implement program listing.
- */
-void basic_list_program(basic_state_t *state, uint16_t start, uint16_t end) {
-    (void)state;
-    (void)start;
-    (void)end;
-}
+/* basic_rnd is implemented in rnd.c */

@@ -245,8 +245,8 @@ static const uint8_t *find_next_data(basic_state_t *state) {
     uint8_t *end = state->memory + state->program_end;
 
     if (state->data_ptr == 0) {
-        /* Start from beginning */
-        ptr = state->memory + state->program_start;
+        /* Start from beginning of first line's TEXT (skip 4-byte header) */
+        ptr = state->memory + state->program_start + 4;
     } else {
         ptr = state->memory + state->data_ptr;
     }

@@ -445,24 +445,44 @@ size_t mbf_from_string(const char *str, mbf_t *result) {
         return (size_t)(p - str);
     }
 
-    /* TODO: Implement proper decimal to MBF conversion for floats */
-    /* For now, use integer approximation */
-    if (int_part <= 2147483647LL) {
-        *result = mbf_from_int32((int32_t)int_part);
-        if (negative) {
-            *result = mbf_neg(*result);
+    /* Convert using double as intermediate for decimal numbers */
+    double val = (double)int_part;
+
+    /* Add fractional part */
+    if (frac_digits > 0) {
+        double frac_scale = 1.0;
+        for (int i = 0; i < frac_digits; i++) {
+            frac_scale *= 10.0;
         }
-        return (size_t)(p - str);
+        val += (double)frac_part / frac_scale;
     }
 
-    *result = MBF_ZERO;
+    /* Apply exponent */
+    if (exponent != 0) {
+        double exp_scale = 1.0;
+        int abs_exp = exponent < 0 ? -exponent : exponent;
+        for (int i = 0; i < abs_exp; i++) {
+            exp_scale *= 10.0;
+        }
+        if (exponent > 0) {
+            val *= exp_scale;
+        } else {
+            val /= exp_scale;
+        }
+    }
+
+    if (negative) {
+        val = -val;
+    }
+
+    *result = mbf_from_double(val);
     return (size_t)(p - str);
 }
 
 /*
  * Format a number to string.
  * Returns number of characters written.
- * TODO: Match exact original formatting.
+ * TODO: Match exact original formatting (6 significant digits, scientific notation).
  */
 size_t mbf_to_string(mbf_t a, char *buf, size_t buflen) {
     if (!buf || buflen < 2) return 0;
@@ -473,17 +493,66 @@ size_t mbf_to_string(mbf_t a, char *buf, size_t buflen) {
         return 1;
     }
 
-    bool overflow;
-    int32_t val = mbf_to_int32(a, &overflow);
+    /* Convert to double for formatting */
+    double val = mbf_to_double(a);
+    double absval = val < 0 ? -val : val;
 
+    /* Check if this is an integer value */
+    bool overflow;
+    int32_t int_val = mbf_to_int32(a, &overflow);
     if (!overflow) {
-        /* Simple integer format */
-        int len = snprintf(buf, buflen, "%ld", (long)val);
-        return (size_t)(len > 0 ? len : 0);
+        double check = (double)int_val;
+        /* If converting back gives the same value, use integer format */
+        if (check == val) {
+            int len = snprintf(buf, buflen, "%ld", (long)int_val);
+            return (size_t)(len > 0 ? len : 0);
+        }
     }
 
-    /* TODO: Implement floating-point formatting */
-    buf[0] = '?';
-    buf[1] = '\0';
-    return 1;
+    /* Floating-point formatting */
+    /* BASIC typically uses up to 6 significant digits */
+    int len;
+
+    if (absval >= 1e6 || absval < 0.01) {
+        /* Scientific notation for very large or small numbers */
+        len = snprintf(buf, buflen, "%.5E", val);
+    } else if (absval >= 1.0) {
+        /* Regular decimal notation */
+        /* Determine number of decimal places needed */
+        if (absval >= 100000.0) {
+            len = snprintf(buf, buflen, "%.0f", val);
+        } else if (absval >= 10000.0) {
+            len = snprintf(buf, buflen, "%.1f", val);
+        } else if (absval >= 1000.0) {
+            len = snprintf(buf, buflen, "%.2f", val);
+        } else if (absval >= 100.0) {
+            len = snprintf(buf, buflen, "%.3f", val);
+        } else if (absval >= 10.0) {
+            len = snprintf(buf, buflen, "%.4f", val);
+        } else {
+            len = snprintf(buf, buflen, "%.5f", val);
+        }
+    } else {
+        /* Small numbers (0.01 to 1) */
+        len = snprintf(buf, buflen, "%.6f", val);
+    }
+
+    /* Remove trailing zeros after decimal point */
+    if (len > 0) {
+        char *p = buf + len - 1;
+        /* Don't remove from scientific notation */
+        if (strchr(buf, 'E') == NULL) {
+            while (p > buf && *p == '0') {
+                p--;
+                len--;
+            }
+            if (*p == '.') {
+                p--;
+                len--;
+            }
+            *(p + 1) = '\0';
+        }
+    }
+
+    return (size_t)(len > 0 ? len : 0);
 }

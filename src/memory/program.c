@@ -8,56 +8,13 @@
  * program.c - Program Storage
  *
  * Manages BASIC program storage in memory.
- * Lines are stored as linked list: link[2], line_num[2], tokenized_text..., 0
+ * Lines are stored sequentially: link[2], line_num[2], tokenized_text..., 0
+ * Link points to the next line (0 = end of program).
  */
 
 #include "basic/basic.h"
 #include "basic/tokens.h"
 #include <string.h>
-
-/*
- * Find a program line by number.
- * Returns pointer to line start (link field), or NULL if not found.
- * If prev is not NULL, stores pointer to previous line (or NULL if first).
- */
-static uint8_t *find_line(basic_state_t *state, uint16_t line_num, uint8_t **prev) {
-    if (!state) return NULL;
-
-    uint8_t *ptr = state->memory + state->program_start;
-    uint8_t *end = state->memory + state->program_end;
-    uint8_t *prev_ptr = NULL;
-
-    while (ptr < end) {
-        uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
-        uint16_t num = (uint16_t)(ptr[2] | (ptr[3] << 8));
-
-        if (num == line_num) {
-            if (prev) *prev = prev_ptr;
-            return ptr;
-        }
-
-        if (num > line_num || link == 0) {
-            /* Line not found, but we found where it would go */
-            if (prev) *prev = prev_ptr;
-            return NULL;
-        }
-
-        prev_ptr = ptr;
-        ptr = state->memory + link;
-    }
-
-    if (prev) *prev = prev_ptr;
-    return NULL;
-}
-
-/*
- * Get line length (including header but not link to next).
- */
-static uint16_t line_length(const uint8_t *line) {
-    const uint8_t *ptr = line + 4;  /* Skip link and line number */
-    while (*ptr) ptr++;
-    return (uint16_t)(ptr - line + 1);  /* +1 for null terminator */
-}
 
 /*
  * Insert or replace a program line.
@@ -68,130 +25,78 @@ bool program_insert_line(basic_state_t *state, uint16_t line_num,
                          const uint8_t *tokenized, size_t tokenized_len) {
     if (!state) return false;
 
-    uint8_t *prev = NULL;
-    uint8_t *existing = find_line(state, line_num, &prev);
-    uint16_t old_len = existing ? line_length(existing) : 0;
-    uint16_t new_len = (tokenized_len > 0) ? (uint16_t)(4 + tokenized_len + 1) : 0;
-    int16_t delta = (int16_t)new_len - (int16_t)old_len;
+    /* Calculate new line size: 2 (link) + 2 (line num) + text + 1 (null) */
+    uint16_t new_line_size = (tokenized_len > 0) ? (uint16_t)(4 + tokenized_len + 1) : 0;
 
-    /* Check if we have space */
-    if (delta > 0) {
+    /* Find existing line and its predecessor */
+    uint8_t *prev_line = NULL;
+    uint8_t *curr_line = NULL;
+    uint8_t *ptr = state->memory + state->program_start;
+    uint8_t *prog_end = state->memory + state->program_end;
+
+    while (ptr < prog_end) {
+        uint16_t num = (uint16_t)(ptr[2] | (ptr[3] << 8));
+
+        if (num == line_num) {
+            curr_line = ptr;
+            break;
+        }
+        if (num > line_num) {
+            break;  /* Insert position found */
+        }
+
+        prev_line = ptr;
+        uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
+        if (link == 0) {
+            ptr = prog_end;  /* End of program */
+            break;
+        }
+        ptr = state->memory + link;
+    }
+
+    /* Calculate old line size if it exists */
+    uint16_t old_line_size = 0;
+    if (curr_line) {
+        uint8_t *line_text = curr_line + 4;
+        while (*line_text) line_text++;
+        old_line_size = (uint16_t)(line_text - curr_line + 1);
+    }
+
+    /* Check memory availability */
+    int32_t size_delta = (int32_t)new_line_size - (int32_t)old_line_size;
+    if (size_delta > 0) {
         uint16_t free_space = state->string_start - state->array_start;
-        if ((uint16_t)delta > free_space) {
+        if ((uint16_t)size_delta > free_space) {
             return false;  /* Out of memory */
         }
     }
 
-    if (existing) {
-        /* Line exists - we need to delete or replace it */
-        uint8_t *line_end = existing + old_len;
-        uint8_t *prog_end = state->memory + state->program_end;
+    if (curr_line) {
+        /* Line exists - delete it first */
+        uint8_t *line_end = curr_line + old_line_size;
+        uint16_t old_link = (uint16_t)(curr_line[0] | (curr_line[1] << 8));
 
-        if (new_len == 0) {
-            /* Delete line - shift everything after it down */
-            memmove(existing, line_end, (size_t)(prog_end - line_end));
-            state->program_end -= old_len;
+        /* Shift everything after it down */
+        memmove(curr_line, line_end, (size_t)(prog_end - line_end));
+        state->program_end -= old_line_size;
+        prog_end = state->memory + state->program_end;
 
-            /* Update previous line's link */
-            if (prev) {
-                uint16_t next_link = (uint16_t)(line_end[0] | (line_end[1] << 8));
-                if (next_link != 0) {
-                    next_link -= old_len;
-                }
-                prev[0] = (uint8_t)(next_link & 0xFF);
-                prev[1] = (uint8_t)(next_link >> 8);
+        /* Update previous line's link to skip over deleted line */
+        if (prev_line) {
+            uint16_t new_link = old_link;
+            if (new_link != 0) {
+                new_link -= old_line_size;  /* Adjust for removed bytes */
             }
-
-            /* Update all links that point past the deleted line */
-            uint8_t *ptr = state->memory + state->program_start;
-            while (ptr < state->memory + state->program_end) {
-                uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
-                if (link > (uint16_t)(existing - state->memory)) {
-                    link -= old_len;
-                    ptr[0] = (uint8_t)(link & 0xFF);
-                    ptr[1] = (uint8_t)(link >> 8);
-                }
-                if (link == 0) break;
-                ptr = state->memory + link;
-            }
-        } else {
-            /* Replace line - resize in place */
-            if (delta != 0) {
-                memmove(existing + new_len, line_end, (size_t)(prog_end - line_end));
-                state->program_end = (uint16_t)((int16_t)state->program_end + delta);
-
-                /* Update all links that point past this line */
-                uint8_t *ptr = state->memory + state->program_start;
-                while (ptr < state->memory + state->program_end) {
-                    uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
-                    if (ptr != existing && link > (uint16_t)(existing - state->memory)) {
-                        link = (uint16_t)((int16_t)link + delta);
-                        ptr[0] = (uint8_t)(link & 0xFF);
-                        ptr[1] = (uint8_t)(link >> 8);
-                    }
-                    if (link == 0) break;
-                    ptr = state->memory + link;
-                }
-            }
-
-            /* Update link for this line */
-            uint16_t old_link = (uint16_t)(existing[0] | (existing[1] << 8));
-            if (old_link != 0) {
-                old_link = (uint16_t)((int16_t)old_link + delta);
-            }
-            existing[0] = (uint8_t)(old_link & 0xFF);
-            existing[1] = (uint8_t)(old_link >> 8);
-
-            /* Line number stays the same */
-            existing[2] = (uint8_t)(line_num & 0xFF);
-            existing[3] = (uint8_t)(line_num >> 8);
-
-            /* Copy new content */
-            memcpy(existing + 4, tokenized, tokenized_len);
-            existing[4 + tokenized_len] = 0;
-        }
-    } else if (new_len > 0) {
-        /* Line doesn't exist - insert it */
-        /* Find insert position */
-        uint8_t *insert_pos;
-        uint8_t *ptr = state->memory + state->program_start;
-        uint8_t *end = state->memory + state->program_end;
-
-        insert_pos = ptr;
-        while (ptr < end) {
-            uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
-            uint16_t num = (uint16_t)(ptr[2] | (ptr[3] << 8));
-
-            if (num > line_num) {
-                insert_pos = ptr;
-                break;
-            }
-
-            if (link == 0) {
-                insert_pos = end;
-                break;
-            }
-
-            insert_pos = state->memory + link;
-            ptr = state->memory + link;
+            prev_line[0] = (uint8_t)(new_link & 0xFF);
+            prev_line[1] = (uint8_t)(new_link >> 8);
         }
 
-        /* Make room for new line */
-        size_t tail_size = (size_t)(end - insert_pos);
-        memmove(insert_pos + new_len, insert_pos, tail_size);
-        state->program_end += new_len;
-
-        /* Update all links that point at or past insert position */
+        /* Update all links that point past the deleted line */
         ptr = state->memory + state->program_start;
-        while (ptr < state->memory + state->program_end) {
-            if (ptr >= insert_pos && ptr < insert_pos + new_len) {
-                /* This is our new line, skip it for now */
-                ptr = insert_pos + new_len;
-                if (ptr >= state->memory + state->program_end) break;
-            }
+        while (ptr < prog_end) {
             uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
-            if (link >= (uint16_t)(insert_pos - state->memory) && link != 0) {
-                link += new_len;
+            if (link > (uint16_t)(curr_line - state->memory)) {
+                link -= old_line_size;
                 ptr[0] = (uint8_t)(link & 0xFF);
                 ptr[1] = (uint8_t)(link >> 8);
             }
@@ -199,40 +104,78 @@ bool program_insert_line(basic_state_t *state, uint16_t line_num,
             ptr = state->memory + link;
         }
 
-        /* Write the new line */
-        /* Calculate link to next line */
-        uint16_t next_line_offset = (uint16_t)(insert_pos + new_len - state->memory);
-        if (next_line_offset >= state->program_end) {
-            next_line_offset = 0;  /* End of program */
+        /* Reset for re-insertion */
+        curr_line = NULL;
+        prev_line = NULL;
+
+        /* Re-find insertion point */
+        ptr = state->memory + state->program_start;
+        while (ptr < prog_end) {
+            uint16_t num = (uint16_t)(ptr[2] | (ptr[3] << 8));
+            if (num > line_num) {
+                break;
+            }
+            prev_line = ptr;
+            uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
+            if (link == 0) {
+                ptr = prog_end;
+                break;
+            }
+            ptr = state->memory + link;
+        }
+    }
+
+    /* Insert new line if we have content */
+    if (new_line_size > 0) {
+        uint8_t *insert_pos = ptr;  /* Insert before this position */
+
+        /* Shift everything from insert_pos to make room */
+        size_t tail_size = (size_t)(prog_end - insert_pos);
+        memmove(insert_pos + new_line_size, insert_pos, tail_size);
+        state->program_end += new_line_size;
+        prog_end = state->memory + state->program_end;
+
+        /* Update all links that point at or past insert position */
+        uint8_t *scan = state->memory + state->program_start;
+        while (scan < prog_end) {
+            /* Skip the new line we're about to write */
+            if (scan >= insert_pos && scan < insert_pos + new_line_size) {
+                scan = insert_pos + new_line_size;
+                if (scan >= prog_end) break;
+            }
+            uint16_t link = (uint16_t)(scan[0] | (scan[1] << 8));
+            if (link != 0 && link >= (uint16_t)(insert_pos - state->memory)) {
+                link += new_line_size;
+                scan[0] = (uint8_t)(link & 0xFF);
+                scan[1] = (uint8_t)(link >> 8);
+            }
+            if (link == 0) break;
+            scan = state->memory + link;
         }
 
-        insert_pos[0] = (uint8_t)(next_line_offset & 0xFF);
-        insert_pos[1] = (uint8_t)(next_line_offset >> 8);
+        /* Calculate link to next line */
+        uint16_t next_offset = (uint16_t)(insert_pos + new_line_size - state->memory);
+        if (next_offset >= state->program_end) {
+            next_offset = 0;  /* End of program */
+        }
+
+        /* Write the new line */
+        insert_pos[0] = (uint8_t)(next_offset & 0xFF);
+        insert_pos[1] = (uint8_t)(next_offset >> 8);
         insert_pos[2] = (uint8_t)(line_num & 0xFF);
         insert_pos[3] = (uint8_t)(line_num >> 8);
         memcpy(insert_pos + 4, tokenized, tokenized_len);
         insert_pos[4 + tokenized_len] = 0;
 
-        /* Update previous line's link if needed */
-        if (insert_pos > state->memory + state->program_start) {
-            ptr = state->memory + state->program_start;
-            while (ptr < insert_pos) {
-                uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
-                uint8_t *next = state->memory + link;
-                if (next == insert_pos + new_len || link == 0 ||
-                    (ptr[2] | (ptr[3] << 8)) < line_num) {
-                    /* This line should point to our new line */
-                    uint16_t new_link = (uint16_t)(insert_pos - state->memory);
-                    ptr[0] = (uint8_t)(new_link & 0xFF);
-                    ptr[1] = (uint8_t)(new_link >> 8);
-                }
-                if (link == 0) break;
-                ptr = next;
-            }
+        /* Update previous line's link to point to new line */
+        if (prev_line) {
+            uint16_t new_link = (uint16_t)(insert_pos - state->memory);
+            prev_line[0] = (uint8_t)(new_link & 0xFF);
+            prev_line[1] = (uint8_t)(new_link >> 8);
         }
     }
 
-    /* Update var_start and array_start if needed */
+    /* Update var_start and array_start */
     state->var_start = state->program_end;
     state->array_start = state->var_start;
 
@@ -245,22 +188,32 @@ bool program_insert_line(basic_state_t *state, uint16_t line_num,
 /*
  * Get a program line by number.
  * Returns pointer to tokenized content (after line number), or NULL if not found.
- * Sets *line_len to length of tokenized content (not including null).
  */
 const uint8_t *program_get_line(basic_state_t *state, uint16_t line_num, size_t *line_len) {
     if (!state) return NULL;
 
-    uint8_t *line = find_line(state, line_num, NULL);
-    if (!line) return NULL;
+    uint8_t *ptr = state->memory + state->program_start;
+    uint8_t *end = state->memory + state->program_end;
 
-    const uint8_t *text = line + 4;
-    if (line_len) {
-        const uint8_t *p = text;
-        while (*p) p++;
-        *line_len = (size_t)(p - text);
+    while (ptr < end) {
+        uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
+        uint16_t num = (uint16_t)(ptr[2] | (ptr[3] << 8));
+
+        if (num == line_num) {
+            const uint8_t *text = ptr + 4;
+            if (line_len) {
+                const uint8_t *p = text;
+                while (*p) p++;
+                *line_len = (size_t)(p - text);
+            }
+            return text;
+        }
+
+        if (link == 0) break;
+        ptr = state->memory + link;
     }
 
-    return text;
+    return NULL;
 }
 
 /*
@@ -271,7 +224,6 @@ uint16_t program_first_line(basic_state_t *state) {
     if (!state || state->program_end == state->program_start) {
         return 0;
     }
-
     uint8_t *ptr = state->memory + state->program_start;
     return (uint16_t)(ptr[2] | (ptr[3] << 8));
 }
@@ -283,15 +235,25 @@ uint16_t program_first_line(basic_state_t *state) {
 uint16_t program_next_line(basic_state_t *state, uint16_t line_num) {
     if (!state) return 0;
 
-    uint8_t *line = find_line(state, line_num, NULL);
-    if (!line) return 0;
+    uint8_t *ptr = state->memory + state->program_start;
+    uint8_t *end = state->memory + state->program_end;
 
-    uint16_t link = (uint16_t)(line[0] | (line[1] << 8));
-    if (link == 0 || link >= state->program_end) {
-        return 0;
+    while (ptr < end) {
+        uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
+        uint16_t num = (uint16_t)(ptr[2] | (ptr[3] << 8));
+
+        if (num == line_num) {
+            if (link == 0 || link >= state->program_end) {
+                return 0;
+            }
+            return (uint16_t)(state->memory[link + 2] | (state->memory[link + 3] << 8));
+        }
+
+        if (link == 0) break;
+        ptr = state->memory + link;
     }
 
-    return (uint16_t)(state->memory[link + 2] | (state->memory[link + 3] << 8));
+    return 0;
 }
 
 /*
@@ -319,13 +281,11 @@ void basic_list_program(basic_state_t *state, uint16_t start, uint16_t end) {
                 uint8_t ch = *text++;
 
                 if (TOK_IS_KEYWORD(ch)) {
-                    /* Print keyword */
                     const char *kw = token_to_keyword(ch);
                     if (kw) {
                         fprintf(state->output, "%s", kw);
                     }
                 } else if (ch == '"') {
-                    /* Print string literal */
                     fputc('"', state->output);
                     while (*text && *text != '"') {
                         fputc(*text++, state->output);
