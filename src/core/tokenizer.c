@@ -80,11 +80,9 @@ static size_t match_keyword(const char *input, const char *keyword) {
         }
         len++;
     }
-    /* For keywords that end with a letter, ensure the match isn't part of a longer identifier.
-     * Keywords like TAB( and SPC( end with non-letter, so don't apply this check. */
-    if (len > 0 && isalpha((unsigned char)keyword[len - 1]) && isalnum((unsigned char)input[len])) {
-        return 0;  /* e.g., "PRINTING" should not match "PRINT" */
-    }
+    /* Original Microsoft BASIC allows keywords anywhere, even embedded in identifiers.
+     * For example: FORI=1TO10 parses as FOR I = 1 TO 10
+     * So we do NOT check if the keyword is followed by alphanumeric. */
     return len;
 }
 

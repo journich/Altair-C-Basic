@@ -992,7 +992,6 @@ static basic_error_t execute_statement(basic_state_t *state,
             const char *prompt = "? ";
             if (pos < len && tokenized[pos] == '"') {
                 pos++;
-                size_t prompt_start = pos;
                 while (pos < len && tokenized[pos] != '"') {
                     io_putchar(state, (char)tokenized[pos]);
                     pos++;
@@ -1005,7 +1004,6 @@ static basic_error_t execute_statement(basic_state_t *state,
                     pos++;
                     prompt = "";  /* No question mark */
                 }
-                (void)prompt_start;
             }
 
             /* Print prompt */
@@ -1018,11 +1016,16 @@ static basic_error_t execute_statement(basic_state_t *state,
                 return ERR_NONE;  /* Ctrl-C pressed */
             }
 
-            /* Parse variable and assign value */
-            while (pos < len && tokenized[pos] == ' ') pos++;
+            /* Parse multiple variables, each getting a value from input */
+            const char *input_ptr = input_buf;
 
-            if (pos < len && isalpha(tokenized[pos])) {
-                char var_name[4] = {0};  /* Room for 2 chars + $ + null */
+            while (pos < len && tokenized[pos] != ':' && tokenized[pos] != '\0') {
+                while (pos < len && tokenized[pos] == ' ') pos++;
+
+                if (!isalpha(tokenized[pos])) break;
+
+                /* Parse variable name */
+                char var_name[4] = {0};
                 size_t name_len = 0;
                 var_name[name_len++] = (char)tokenized[pos++];
                 if (pos < len && isalnum(tokenized[pos])) {
@@ -1034,21 +1037,44 @@ static basic_error_t execute_statement(basic_state_t *state,
                     pos++;  /* Skip $ */
                     var_name[name_len] = '$';
 
-                    /* Create string from input and assign */
-                    string_desc_t desc = string_create(state, input_buf);
-                    return stmt_let_string(state, var_name, desc);
+                    /* Find end of this input value (comma or end) */
+                    const char *end = input_ptr;
+                    while (*end && *end != ',') end++;
+                    size_t val_len = (size_t)(end - input_ptr);
+                    if (val_len > 255) val_len = 255;
+
+                    /* Create string from this portion of input */
+                    string_desc_t desc = string_create_len(state, input_ptr, (uint8_t)val_len);
+                    basic_error_t err = stmt_let_string(state, var_name, desc);
+                    if (err != ERR_NONE) return err;
+
+                    /* Advance input pointer past this value and comma */
+                    input_ptr = end;
+                    if (*input_ptr == ',') input_ptr++;
                 } else {
                     /* Parse numeric value from input */
                     mbf_t value;
-                    size_t consumed = io_parse_number(input_buf, &value);
+                    size_t consumed = io_parse_number(input_ptr, &value);
                     if (consumed == 0) {
                         value = MBF_ZERO;
                     }
 
-                    return stmt_let_numeric(state, var_name, value);
+                    basic_error_t err = stmt_let_numeric(state, var_name, value);
+                    if (err != ERR_NONE) return err;
+
+                    /* Advance input pointer past this value and comma */
+                    input_ptr += consumed;
+                    while (*input_ptr == ' ') input_ptr++;
+                    if (*input_ptr == ',') input_ptr++;
+                }
+
+                /* Skip comma in token stream for next variable */
+                while (pos < len && tokenized[pos] == ' ') pos++;
+                if (pos < len && tokenized[pos] == ',') {
+                    pos++;
                 }
             }
-            return ERR_SN;
+            return ERR_NONE;
         }
 
         case TOK_READ: {
@@ -1567,15 +1593,25 @@ void basic_run_program(basic_state_t *state) {
         uint8_t *text = state->memory + state->text_ptr;
         size_t text_len = 0;
 
-        /* Find end of statement (: or null), but skip over strings */
-        bool in_string = false;
-        while (text[text_len] != '\0') {
-            if (text[text_len] == '"') {
-                in_string = !in_string;
-            } else if (text[text_len] == ':' && !in_string) {
-                break;
+        /* Skip leading spaces to find the statement token */
+        size_t skip = 0;
+        while (text[skip] == ' ') skip++;
+
+        /* For REM statements, the entire rest of line is the statement */
+        /* (colons in REM comments should not be treated as separators) */
+        if (text[skip] == TOK_REM) {
+            while (text[text_len] != '\0') text_len++;
+        } else {
+            /* Find end of statement (: or null), but skip over strings */
+            bool in_string = false;
+            while (text[text_len] != '\0') {
+                if (text[text_len] == '"') {
+                    in_string = !in_string;
+                } else if (text[text_len] == ':' && !in_string) {
+                    break;
+                }
+                text_len++;
             }
-            text_len++;
         }
 
         /* Save current position to detect flow control */
