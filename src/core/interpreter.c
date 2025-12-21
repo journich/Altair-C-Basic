@@ -878,24 +878,34 @@ static basic_error_t execute_statement(basic_state_t *state,
         }
 
         case TOK_NEXT: {
-            /* NEXT [var] */
+            /* NEXT [var [, var ...]] - handles comma-separated variables */
             pos++;
-            while (pos < len && tokenized[pos] == ' ') pos++;
 
-            char var_name[3] = {0};
-            if (pos < len && isalpha(tokenized[pos])) {
-                var_name[0] = (char)tokenized[pos++];
-                if (pos < len && isalnum(tokenized[pos])) {
-                    var_name[1] = (char)tokenized[pos++];
+            do {
+                while (pos < len && tokenized[pos] == ' ') pos++;
+
+                char var_name[3] = {0};
+                if (pos < len && isalpha(tokenized[pos])) {
+                    var_name[0] = (char)tokenized[pos++];
+                    if (pos < len && isalnum(tokenized[pos])) {
+                        var_name[1] = (char)tokenized[pos++];
+                    }
                 }
-            }
 
-            bool continue_loop;
-            basic_error_t err = stmt_next(state, var_name, &continue_loop);
-            if (err != ERR_NONE) return err;
+                bool continue_loop;
+                basic_error_t err = stmt_next(state, var_name, &continue_loop);
+                if (err != ERR_NONE) return err;
 
-            /* If loop continues, stmt_next has already set text_ptr */
-            /* If loop done, continue to next statement */
+                /* If this loop continues, stmt_next set text_ptr back to FOR */
+                if (continue_loop) {
+                    return ERR_NONE;
+                }
+
+                /* Loop finished, check for comma and another variable */
+                while (pos < len && tokenized[pos] == ' ') pos++;
+            } while (pos < len && tokenized[pos] == ',' && ++pos);
+
+            /* All loops finished, continue to next statement */
             return ERR_NONE;
         }
 
