@@ -1,0 +1,109 @@
+#!/usr/bin/expect -f
+# Generate golden output for a single test program using SIMH
+# Usage: ./generate_golden.exp <test_name> <program_content>
+#
+# This script initializes BASIC, enters the program, runs it,
+# and captures the output between === markers
+
+if {$argc < 2} {
+    puts "Usage: $argv0 <test_name> <program_file>"
+    exit 1
+}
+
+set test_name [lindex $argv 0]
+set program_file [lindex $argv 1]
+set timeout 60
+
+# Read program file
+set fp [open $program_file r]
+set program_content [read $fp]
+close $fp
+
+# Set up output directory
+set outdir "/Users/tb/dev/NEW-BASIC/mbasic2025/4k8k/8k/basic8k_c/compatibility_tests/golden"
+
+# Open output file
+set outfp [open "$outdir/$test_name.golden" w]
+
+# Change to BASIC directory
+cd "/Users/tb/dev/NEW-BASIC/mbasic2025/4k8k/8k"
+
+# Start SIMH with no logging to terminal
+log_user 0
+spawn altair run_8k.ini
+
+# Initialize BASIC
+expect "MEMORY SIZE?"
+send "32768\r"
+
+expect "TERMINAL WIDTH?"
+send "80\r"
+
+expect "WANT SIN-COS-TAN-ATN?"
+send "Y\r"
+
+expect "OK"
+
+# Enter program lines
+foreach line [split $program_content "\n"] {
+    set line [string trim $line]
+    if {$line ne "" && ![regexp {^\s*$} $line]} {
+        send "$line\r"
+        expect {
+            "OK" { }
+            "?*ERROR*" {
+                puts $outfp "ERROR entering line: $line"
+            }
+            timeout {
+                puts $outfp "TIMEOUT entering line: $line"
+            }
+        }
+    }
+}
+
+# Run the program and capture output
+log_user 1
+send "RUN\r"
+
+set capturing 0
+set output ""
+
+expect {
+    -re {(===.*===)} {
+        append output $expect_out(1,string) "\n"
+        exp_continue
+    }
+    -re {([^\r\n]+)\r?\n} {
+        set line $expect_out(1,string)
+        if {[regexp {^===} $line]} {
+            set capturing 1
+        }
+        if {$capturing} {
+            append output "$line\n"
+        }
+        if {[regexp {=== END} $line]} {
+            set capturing 0
+        }
+        exp_continue
+    }
+    "OK" {
+        # Program finished
+    }
+    timeout {
+        puts $outfp "TIMEOUT during RUN"
+    }
+}
+
+# Write captured output
+puts $outfp $output
+
+close $outfp
+
+# Exit SIMH cleanly
+log_user 0
+send "\x05"
+expect "sim>"
+send "exit\r"
+expect eof
+
+puts "Generated: $outdir/$test_name.golden"

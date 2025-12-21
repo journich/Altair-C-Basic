@@ -142,9 +142,12 @@ int main(int argc, char *argv[]) {
                 basic_print_error(state, err, 0xFFFF);
             }
             basic_print_ok(state);
+            /* Exit after running file - don't enter interactive mode */
+            basic_free(state);
+            return 0;
         }
 
-        /* Enter interactive mode after program ends */
+        /* Only enter interactive mode if -n flag was used (not running) */
         basic_run_interactive(state);
     } else {
         /* Start interactive interpreter */

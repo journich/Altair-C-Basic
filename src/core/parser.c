@@ -365,7 +365,11 @@ static string_desc_t parse_string_function(parse_state_t *ps) {
             mbf_t n = parse_expression(ps);
             bool overflow;
             int16_t count = mbf_to_int16(n, &overflow);
-            if (count < 0) count = 0;
+            /* Original BASIC throws FC error for count <= 0 */
+            if (count <= 0) {
+                ps->error = ERR_FC;
+                return result;
+            }
             if (count > 255) count = 255;
 
             if (!expect(ps, ')')) {
@@ -396,13 +400,21 @@ static string_desc_t parse_string_function(parse_state_t *ps) {
             mbf_t start_mbf = parse_expression(ps);
             bool overflow;
             int16_t start = mbf_to_int16(start_mbf, &overflow);
-            if (start < 1) start = 1;
+            /* Original BASIC throws FC error for start < 1 */
+            if (start < 1) {
+                ps->error = ERR_FC;
+                return result;
+            }
 
             uint8_t count = 255;  /* Default: rest of string */
             if (expect(ps, ',')) {
                 mbf_t n = parse_expression(ps);
                 int16_t c = mbf_to_int16(n, &overflow);
-                if (c < 0) c = 0;
+                /* Original BASIC throws FC error for count <= 0 */
+                if (c <= 0) {
+                    ps->error = ERR_FC;
+                    return result;
+                }
                 if (c > 255) c = 255;
                 count = (uint8_t)c;
             }
@@ -1022,13 +1034,16 @@ static mbf_t parse_number(parse_state_t *ps) {
     char buf[64];
     size_t len = 0;
 
-    /* Collect digits and decimal point */
+    /* Collect digits, decimal point, and exponent */
     while (len < sizeof(buf) - 1) {
         uint8_t c = peek(ps);
-        if (isdigit(c) || c == '.' || c == 'E' || c == 'e' ||
-            ((c == '+' || c == '-') && len > 0 &&
-             (buf[len-1] == 'E' || buf[len-1] == 'e'))) {
+        if (isdigit(c) || c == '.' || c == 'E' || c == 'e') {
             buf[len++] = (char)consume(ps);
+        } else if ((c == '+' || c == '-' || c == TOK_PLUS || c == TOK_MINUS) &&
+                   len > 0 && (buf[len-1] == 'E' || buf[len-1] == 'e')) {
+            /* Handle tokenized +/- after E for scientific notation */
+            consume(ps);
+            buf[len++] = (c == TOK_PLUS || c == '+') ? '+' : '-';
         } else {
             break;
         }

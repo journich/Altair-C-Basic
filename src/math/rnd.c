@@ -61,17 +61,22 @@
 
 /*
  * Multiplier table (8 entries from D1846-D1865)
- * These are MBF format constants stored in little-endian order.
+ * Extracted directly from 8kbas_src.mac lines 4462-4493.
+ * These are MBF format constants stored in little-endian order:
+ *   byte_array[0] = mantissa_lo
+ *   byte_array[1] = mantissa_mid
+ *   byte_array[2] = mantissa_hi (with sign in bit 7)
+ *   byte_array[3] = exponent
  */
 static const mbf_t RND_MULTIPLIERS[8] = {
-    {.byte_array = {0x00, 0x35, 0x4A, 0xCA}},  /* Entry 0 */
-    {.byte_array = {0x99, 0x39, 0x1C, 0x76}},  /* Entry 1 */
-    {.byte_array = {0x98, 0x22, 0x95, 0xB3}},  /* Entry 2 */
-    {.byte_array = {0x98, 0x0A, 0xDD, 0x47}},  /* Entry 3 */
-    {.byte_array = {0x98, 0x53, 0xD1, 0x99}},  /* Entry 4 */
-    {.byte_array = {0x99, 0x0A, 0x1A, 0x9F}},  /* Entry 5 */
-    {.byte_array = {0x98, 0x65, 0xBC, 0xCD}},  /* Entry 6 */
-    {.byte_array = {0x98, 0xD6, 0x77, 0x3E}},  /* Entry 7 */
+    {.byte_array = {0x35, 0x4A, 0xCA, 0x99}},  /* Entry 0: 1846-1849 */
+    {.byte_array = {0x39, 0x1C, 0x76, 0x98}},  /* Entry 1: 184A-184D */
+    {.byte_array = {0x22, 0x95, 0xB3, 0x98}},  /* Entry 2: 184E-1851 */
+    {.byte_array = {0x0A, 0xDD, 0x47, 0x98}},  /* Entry 3: 1852-1855 */
+    {.byte_array = {0x53, 0xD1, 0x99, 0x99}},  /* Entry 4: 1856-1859 */
+    {.byte_array = {0x0A, 0x1A, 0x9F, 0x98}},  /* Entry 5: 185A-185D */
+    {.byte_array = {0x65, 0xBC, 0xCD, 0x98}},  /* Entry 6: 185E-1861 */
+    {.byte_array = {0xD6, 0x77, 0x3E, 0x98}},  /* Entry 7: 1862-1865 */
 };
 
 /*
@@ -141,34 +146,31 @@ mbf_t rnd_next(rnd_state_t *state, mbf_t arg) {
 
     /*
      * Stage 2: Add table entry
-     * Index is counter2 mod 4
+     * Original algorithm at lines 4419-4425 cycles through indices 1, 2, 3
+     * (never 0). The CPI/ADC trick forces 0 back to 1 when wrapping.
      */
     state->counter2++;
-    uint8_t add_index = state->counter2 & 0x03;
-
-    /* Skip index 0 since that's the seed storage location */
-    /* Actually the original adds the entry AT that index which includes seed */
-    /* But for counter2 values 1-3, it uses the constants */
-    mbf_t addend;
-    if (add_index == 0) {
-        addend = state->last_value;  /* Use current seed */
-    } else {
-        addend = RND_ADDENDS[add_index];
+    if (state->counter2 > 3) {
+        state->counter2 = 1;
     }
-
+    mbf_t addend = RND_ADDENDS[state->counter2];
     result = mbf_add(result, addend);
 
     /*
      * Byte scrambling (from lines 4432-4449):
-     * - Swap mantissa_lo and mantissa_hi (before sign handling)
-     * - XOR with 0x4F
-     * - Set exponent to 0x80
+     * The 8080 code does:
+     *   mov a,e    ; A = mantissa_lo
+     *   mov e,c    ; E = mantissa_hi
+     *   xri 4FH    ; A = mantissa_lo ^ 0x4F
+     *   mov c,a    ; C = mantissa_lo ^ 0x4F
+     * So: new_lo = old_hi, new_hi = (old_lo ^ 0x4F)
+     * Then set exponent to 0x80 (value between 0.5 and 1)
      */
     uint8_t temp_lo = result.bytes.mantissa_lo;
     uint8_t temp_hi = result.bytes.mantissa_hi & 0x7F;  /* Clear sign */
 
-    result.bytes.mantissa_lo = temp_hi ^ 0x4F;
-    result.bytes.mantissa_hi = temp_lo & 0x7F;  /* Clear sign bit - result is always positive */
+    result.bytes.mantissa_lo = temp_hi;
+    result.bytes.mantissa_hi = (temp_lo ^ 0x4F) & 0x7F;  /* XOR and clear sign */
     result.bytes.exponent = 0x80;
 
     /*

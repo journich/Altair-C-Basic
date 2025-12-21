@@ -521,7 +521,8 @@ void basic_print_ok(basic_state_t *state) {
 void basic_print_error(basic_state_t *state, basic_error_t err, uint16_t line) {
     if (!state || !state->output) return;
 
-    fprintf(state->output, "?%s ERROR", error_code_string(err));
+    /* Original BASIC prints error on a new line */
+    fprintf(state->output, "\n?%s ERROR", error_code_string(err));
     if (line != 0xFFFF && line != 0) {
         fprintf(state->output, " IN %u", line);
     }
@@ -1784,8 +1785,45 @@ static basic_error_t execute_statement(basic_state_t *state,
             }
 
             if (is_gosub) {
+                /* Calculate return position (after this statement) */
+                /* Same logic as regular GOSUB */
+                uint16_t return_ptr;
+                const uint8_t *stmt_ptr = state->memory + state->text_ptr;
+                while (*stmt_ptr != '\0' && *stmt_ptr != ':') {
+                    stmt_ptr++;
+                }
+
+                if (*stmt_ptr == ':') {
+                    /* More statements on this line - return to next statement */
+                    return_ptr = (uint16_t)(stmt_ptr + 1 - state->memory);
+                } else {
+                    /* End of line - find next line */
+                    uint8_t *line_ptr = state->memory + state->program_start;
+                    uint8_t *end_ptr = state->memory + state->program_end;
+                    return_ptr = state->text_ptr;  /* Default if not found */
+
+                    while (line_ptr < end_ptr) {
+                        uint16_t link = (uint16_t)(line_ptr[0] | (line_ptr[1] << 8));
+                        uint8_t *line_text = line_ptr + 4;
+                        uint8_t *line_end = (link > 0) ? state->memory + link : end_ptr;
+
+                        if (state->text_ptr >= (uint16_t)(line_text - state->memory) &&
+                            state->text_ptr < (uint16_t)(line_end - state->memory)) {
+                            if (link > 0) {
+                                return_ptr = link + 4;
+                            } else {
+                                return_ptr = state->program_end;
+                            }
+                            break;
+                        }
+
+                        if (link == 0) break;
+                        line_ptr = state->memory + link;
+                    }
+                }
+
                 return stmt_on_gosub(state, value, lines, num_lines,
-                                     state->current_line, state->text_ptr);
+                                     state->current_line, return_ptr);
             } else {
                 return stmt_on_goto(state, value, lines, num_lines);
             }

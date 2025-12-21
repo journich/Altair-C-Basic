@@ -1,0 +1,68 @@
+#!/usr/bin/expect -f
+# Run a single BASIC test program on SIMH
+# Usage: ./run_simh_single.exp <program_file>
+
+if {$argc < 1} {
+    puts "Usage: $argv0 <program_file>"
+    exit 1
+}
+
+set program_file [lindex $argv 0]
+set timeout 30
+
+# Read program file
+set fp [open $program_file r]
+set program_content [read $fp]
+close $fp
+
+cd "/Users/tb/dev/NEW-BASIC/mbasic2025/4k8k/8k"
+log_user 0
+spawn altair run_8k.ini
+
+expect "MEMORY SIZE?"
+send "32768\r"
+
+expect "TERMINAL WIDTH?"
+send "80\r"
+
+expect "WANT SIN-COS-TAN-ATN?"
+send "Y\r"
+
+expect "OK"
+
+# Enter program lines
+# Program lines (starting with number) don't echo OK
+# Just wait a brief moment for each line to be processed
+foreach line [split $program_content "\n"] {
+    set line [string trim $line]
+    if {$line ne "" && ![regexp {^\s*$} $line]} {
+        send "$line\r"
+        # Wait for the line to be echoed back
+        sleep 0.1
+    }
+}
+
+# Small delay before RUN
+sleep 0.2
+
+# Run the program and capture output
+log_user 1
+send "RUN\r"
+
+# Wait for program completion
+expect {
+    -re "=== END\[^\r\n\]*===" {
+        expect "OK"
+    }
+    "OK" { }
+    timeout {
+        puts "TIMEOUT"
+    }
+}
+
+# Exit cleanly
+log_user 0
+send "\x05"
+expect "sim>"
+send "exit\r"
+expect eof

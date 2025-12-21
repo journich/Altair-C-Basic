@@ -1,0 +1,66 @@
+#!/usr/bin/expect -f
+# Run a BASIC program on the original 8K BASIC via SIMH and capture output
+# Usage: ./run_simh_test.exp <program.bas> <output_file>
+
+if {$argc < 2} {
+    puts "Usage: $argv0 <program.bas> <output_file>"
+    exit 1
+}
+
+set program [lindex $argv 0]
+set outfile [lindex $argv 1]
+set timeout 30
+
+# Read the BASIC program
+set fp [open $program r]
+set program_lines [read $fp]
+close $fp
+
+# Change to the directory with the BASIC binary
+cd "/Users/tb/dev/NEW-BASIC/mbasic2025/4k8k/8k"
+
+# Start capturing output
+log_file -noappend $outfile
+
+spawn altair run_8k.ini
+
+# Initialize BASIC
+expect "MEMORY SIZE?"
+send "32768\r"
+
+expect "TERMINAL WIDTH?"
+send "80\r"
+
+expect "WANT SIN-COS-TAN-ATN?"
+send "Y\r"
+
+expect "OK"
+
+# Enter the program line by line
+foreach line [split $program_lines "\n"] {
+    set line [string trim $line]
+    if {$line ne ""} {
+        # Skip lines that start with line numbers only for display
+        send "$line\r"
+        expect "OK"
+    }
+}
+
+# Run the program
+send "RUN\r"
+
+# Wait for program to complete
+expect {
+    "OK" { }
+    timeout { puts "TIMEOUT waiting for program to complete" }
+}
+
+# Stop logging
+log_file
+
+# Exit SIMH
+send "\x05"
+expect "sim>"
+send "exit\r"
+
+expect eof

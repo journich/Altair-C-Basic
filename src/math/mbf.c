@@ -603,10 +603,11 @@ size_t mbf_to_string(mbf_t a, char *buf, size_t buflen) {
     double val = mbf_to_double(a);
     double absval = val < 0 ? -val : val;
 
-    /* Check if this is an integer value */
+    /* Check if this is an integer value that fits in normal display */
+    /* Original BASIC uses scientific notation for 7+ digit numbers */
     bool overflow;
     int32_t int_val = mbf_to_int32(a, &overflow);
-    if (!overflow) {
+    if (!overflow && absval < 1e6) {
         double check = (double)int_val;
         /* If converting back gives the same value, use integer format */
         if (check == val) {
@@ -643,11 +644,34 @@ size_t mbf_to_string(mbf_t a, char *buf, size_t buflen) {
         len = snprintf(buf, buflen, "%.6f", val);
     }
 
-    /* Remove trailing zeros after decimal point */
+    /* Post-process the formatted string to match original BASIC */
     if (len > 0) {
-        char *p = buf + len - 1;
-        /* Don't remove from scientific notation */
-        if (strchr(buf, 'E') == NULL) {
+        char *e_ptr = strchr(buf, 'E');
+
+        if (e_ptr != NULL) {
+            /* Scientific notation: convert "1.00000E+06" to "1E+06" */
+            char *dot = strchr(buf, '.');
+            if (dot && dot < e_ptr) {
+                /* Remove trailing zeros before E and possibly the decimal point */
+                char *p = e_ptr - 1;
+                while (p > dot && *p == '0') {
+                    p--;
+                }
+                if (p == dot) {
+                    /* All zeros after decimal, remove the dot too */
+                    memmove(dot, e_ptr, strlen(e_ptr) + 1);
+                    len = strlen(buf);
+                } else if (p < e_ptr - 1) {
+                    /* Some trailing zeros to remove */
+                    memmove(p + 1, e_ptr, strlen(e_ptr) + 1);
+                    len = strlen(buf);
+                }
+            }
+            /* Keep E+0X / E-0X format - original BASIC uses two-digit exponents */
+            /* No simplification needed */
+        } else {
+            /* Regular decimal: remove trailing zeros */
+            char *p = buf + len - 1;
             while (p > buf && *p == '0') {
                 p--;
                 len--;
@@ -657,6 +681,16 @@ size_t mbf_to_string(mbf_t a, char *buf, size_t buflen) {
                 len--;
             }
             *(p + 1) = '\0';
+        }
+
+        /* Remove leading zero before decimal point for 0.xxx -> .xxx */
+        /* Check for "0." or "-0." at start */
+        if (buf[0] == '0' && buf[1] == '.') {
+            memmove(buf, buf + 1, strlen(buf));  /* Remove leading 0 */
+            len--;
+        } else if (buf[0] == '-' && buf[1] == '0' && buf[2] == '.') {
+            memmove(buf + 1, buf + 2, strlen(buf + 1));  /* Remove leading 0 after - */
+            len--;
         }
     }
 
