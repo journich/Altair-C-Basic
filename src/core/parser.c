@@ -52,6 +52,7 @@ static mbf_t parse_unary(parse_state_t *ps);
 static mbf_t parse_primary(parse_state_t *ps);
 static mbf_t parse_number(parse_state_t *ps);
 static mbf_t parse_function(parse_state_t *ps, uint8_t token);
+static string_desc_t parse_string_term(parse_state_t *ps);
 static string_desc_t parse_string_arg(parse_state_t *ps);
 static string_desc_t parse_string_function(parse_state_t *ps);
 
@@ -93,10 +94,10 @@ static bool expect(parse_state_t *ps, uint8_t expected) {
 }
 
 /*
- * Parse a string argument (for LEN, ASC, VAL, etc.)
- * Handles string literals, string variables, and string functions.
+ * Parse a single string term (literal, variable, or function).
+ * Does not handle concatenation - use parse_string_arg for that.
  */
-static string_desc_t parse_string_arg(parse_state_t *ps) {
+static string_desc_t parse_string_term(parse_state_t *ps) {
     string_desc_t result = {0};
     skip_space(ps);
 
@@ -116,7 +117,7 @@ static string_desc_t parse_string_arg(parse_state_t *ps) {
             result = string_create_len(ps->basic, (const char *)(ps->text + start), (uint8_t)len);
         }
     } else if (isalpha(c)) {
-        /* String variable */
+        /* String variable or array */
         char var_name[4] = {0};
         size_t name_len = 0;
         var_name[name_len++] = (char)consume(ps);
@@ -126,8 +127,50 @@ static string_desc_t parse_string_arg(parse_state_t *ps) {
         if (peek(ps) == '$') {
             consume(ps);  /* Skip $ */
             var_name[name_len] = '$';
-            if (ps->basic) {
-                result = var_get_string(ps->basic, var_name);
+
+            /* Check for array subscript */
+            skip_space(ps);
+            if (peek(ps) == '(') {
+                /* String array access */
+                consume(ps);  /* Skip ( */
+                mbf_t idx1_val = parse_expression(ps);
+                if (ps->error != ERR_NONE) return result;
+
+                bool overflow;
+                int16_t idx1 = mbf_to_int16(idx1_val, &overflow);
+                if (overflow) {
+                    ps->error = ERR_BS;
+                    return result;
+                }
+
+                int16_t idx2 = -1;  /* -1 means 1D array */
+                skip_space(ps);
+                if (peek(ps) == ',') {
+                    consume(ps);  /* Skip , */
+                    mbf_t idx2_val = parse_expression(ps);
+                    if (ps->error != ERR_NONE) return result;
+                    idx2 = mbf_to_int16(idx2_val, &overflow);
+                    if (overflow) {
+                        ps->error = ERR_BS;
+                        return result;
+                    }
+                }
+
+                skip_space(ps);
+                if (peek(ps) != ')') {
+                    ps->error = ERR_SN;
+                    return result;
+                }
+                consume(ps);  /* Skip ) */
+
+                if (ps->basic) {
+                    result = array_get_string(ps->basic, var_name, idx1, idx2);
+                }
+            } else {
+                /* Simple string variable */
+                if (ps->basic) {
+                    result = var_get_string(ps->basic, var_name);
+                }
             }
         } else {
             ps->error = ERR_TM;  /* Type mismatch - expected string */
@@ -137,6 +180,33 @@ static string_desc_t parse_string_arg(parse_state_t *ps) {
         result = parse_string_function(ps);
     } else {
         ps->error = ERR_TM;  /* Type mismatch */
+    }
+
+    return result;
+}
+
+/*
+ * Parse a string argument (for LEN, ASC, VAL, etc.)
+ * Handles string literals, string variables, string functions, and concatenation.
+ */
+static string_desc_t parse_string_arg(parse_state_t *ps) {
+    string_desc_t result = parse_string_term(ps);
+    if (ps->error != ERR_NONE) return result;
+
+    /* Handle string concatenation with + */
+    skip_space(ps);
+    while (peek(ps) == '+' || peek(ps) == TOK_PLUS) {
+        consume(ps);  /* Skip + */
+        skip_space(ps);
+
+        string_desc_t right = parse_string_term(ps);
+        if (ps->error != ERR_NONE) return result;
+
+        /* Concatenate */
+        if (ps->basic) {
+            result = string_concat(ps->basic, result, right);
+        }
+        skip_space(ps);
     }
 
     return result;
@@ -325,9 +395,122 @@ static mbf_t parse_not_expr(parse_state_t *ps) {
 }
 
 /*
+ * Check if current position looks like a string expression.
+ * Returns true for: string variable (A$), string literal ("..."), string function (LEFT$, etc.)
+ */
+static bool is_string_expr_start(parse_state_t *ps) {
+    size_t save_pos = ps->pos;
+    skip_space(ps);
+    uint8_t c = peek(ps);
+
+    bool is_string = false;
+
+    if (c == '"') {
+        is_string = true;
+    } else if (TOK_IS_STRING_FUNC(c)) {
+        is_string = true;
+    } else if (isalpha(c)) {
+        /* Look ahead for $ after variable name */
+        consume(ps);
+        if (ps->pos < ps->len && isalnum(peek(ps))) {
+            consume(ps);
+        }
+        if (peek(ps) == '$') {
+            is_string = true;
+        }
+    }
+
+    ps->pos = save_pos;
+    return is_string;
+}
+
+/*
+ * Compare two strings.
+ * Returns: -1 if s1 < s2, 0 if s1 == s2, 1 if s1 > s2
+ */
+static int string_cmp(basic_state_t *state, string_desc_t s1, string_desc_t s2) {
+    const char *p1 = (s1.ptr > 0 && state) ? (const char *)(state->memory + s1.ptr) : "";
+    const char *p2 = (s2.ptr > 0 && state) ? (const char *)(state->memory + s2.ptr) : "";
+    size_t len1 = s1.length;
+    size_t len2 = s2.length;
+    size_t min_len = len1 < len2 ? len1 : len2;
+
+    for (size_t i = 0; i < min_len; i++) {
+        if ((unsigned char)p1[i] < (unsigned char)p2[i]) return -1;
+        if ((unsigned char)p1[i] > (unsigned char)p2[i]) return 1;
+    }
+
+    if (len1 < len2) return -1;
+    if (len1 > len2) return 1;
+    return 0;
+}
+
+/*
  * Parse relational expression: additive ((=|<>|<|>|<=|>=) additive)?
+ * Also handles string comparisons.
  */
 static mbf_t parse_relational(parse_state_t *ps) {
+    /* Check if this is a string comparison */
+    if (is_string_expr_start(ps)) {
+        string_desc_t left = parse_string_arg(ps);
+        if (ps->error != ERR_NONE) return MBF_ZERO;
+
+        skip_space(ps);
+        uint8_t op = peek(ps);
+
+        /* Check for relational operators */
+        if (op == TOK_EQ || op == TOK_LT || op == TOK_GT || op == '=' || op == '<' || op == '>') {
+            consume(ps);
+
+            /* Check for compound operators: <>, <=, >= */
+            uint8_t op2 = peek(ps);
+            int cmp_type = 0;  /* 0=eq, 1=lt, 2=gt, 3=le, 4=ge, 5=ne */
+
+            if (op == TOK_EQ || op == '=') {
+                cmp_type = 0;  /* = */
+            } else if (op == TOK_LT || op == '<') {
+                if (op2 == TOK_GT || op2 == '>') {
+                    consume(ps);
+                    cmp_type = 5;  /* <> (not equal) */
+                } else if (op2 == TOK_EQ || op2 == '=') {
+                    consume(ps);
+                    cmp_type = 3;  /* <= */
+                } else {
+                    cmp_type = 1;  /* < */
+                }
+            } else if (op == TOK_GT || op == '>') {
+                if (op2 == TOK_EQ || op2 == '=') {
+                    consume(ps);
+                    cmp_type = 4;  /* >= */
+                } else {
+                    cmp_type = 2;  /* > */
+                }
+            }
+
+            string_desc_t right = parse_string_arg(ps);
+            if (ps->error != ERR_NONE) return MBF_ZERO;
+
+            int cmp = string_cmp(ps->basic, left, right);
+
+            int result = 0;
+            switch (cmp_type) {
+                case 0: result = (cmp == 0) ? -1 : 0; break;  /* = */
+                case 1: result = (cmp < 0) ? -1 : 0; break;   /* < */
+                case 2: result = (cmp > 0) ? -1 : 0; break;   /* > */
+                case 3: result = (cmp <= 0) ? -1 : 0; break;  /* <= */
+                case 4: result = (cmp >= 0) ? -1 : 0; break;  /* >= */
+                case 5: result = (cmp != 0) ? -1 : 0; break;  /* <> */
+            }
+
+            return mbf_from_int16((int16_t)result);
+        }
+
+        /* String expression without comparison - error in numeric context */
+        ps->error = ERR_TM;
+        return MBF_ZERO;
+    }
+
+    /* Numeric comparison */
     mbf_t left = parse_additive(ps);
 
     skip_space(ps);

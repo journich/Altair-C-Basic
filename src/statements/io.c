@@ -279,15 +279,32 @@ static const uint8_t *find_next_data(basic_state_t *state) {
                 /* Check if there's more program */
                 if (ptr >= end) return NULL;
 
-                /* Read link to next line */
+                /* Check for valid line header (at least 4 bytes) */
+                if (ptr + 4 > end) return NULL;
+
+                /* Read link to next line - 0 means this is the last line */
                 uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
-                if (link == 0) return NULL;
 
                 /* Update data line number */
                 state->data_line = (uint16_t)(ptr[2] | (ptr[3] << 8));
 
                 /* Move to start of line text */
                 ptr += 4;
+
+                /* If link is 0, this is the last line but we still need to scan it */
+                /* We'll detect end of program when we hit the null terminator */
+                if (link == 0) {
+                    /* This is the last line - scan until we find DATA or hit null */
+                    while (ptr < end && *ptr != 0) {
+                        if (*ptr == TOK_DATA) {
+                            ptr++;  /* Skip DATA token */
+                            state->data_ptr = (uint16_t)(ptr - state->memory);
+                            return ptr;
+                        }
+                        ptr++;
+                    }
+                    return NULL;  /* No DATA found on last line */
+                }
                 continue;
             }
         }

@@ -16,9 +16,30 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <signal.h>
 
 /* Error state */
 error_context_t g_last_error = {0};
+
+/* Ctrl-C interrupt handling */
+static volatile sig_atomic_t g_interrupt_flag = 0;
+static basic_state_t *g_interrupt_state = NULL;
+
+static void interrupt_handler(int sig) {
+    (void)sig;
+    g_interrupt_flag = 1;
+}
+
+void basic_setup_interrupt(basic_state_t *state) {
+    g_interrupt_state = state;
+    g_interrupt_flag = 0;
+    signal(SIGINT, interrupt_handler);
+}
+
+void basic_clear_interrupt(void) {
+    g_interrupt_flag = 0;
+    signal(SIGINT, SIG_DFL);
+}
 
 /*
  * Error code strings - exact match to original BASIC.
@@ -331,13 +352,21 @@ static basic_error_t execute_statement(basic_state_t *state,
                 uint8_t ch = tokenized[pos];
 
                 if (ch == '"') {
-                    /* String literal */
-                    pos++;
-                    while (pos < len && tokenized[pos] != '"' && tokenized[pos] != '\0') {
-                        io_putchar(state, (char)tokenized[pos]);
-                        pos++;
+                    /* String expression starting with literal - use eval_string_desc */
+                    basic_error_t err;
+                    size_t consumed;
+                    string_desc_t desc = eval_string_desc(state, tokenized + pos,
+                                                          len - pos, &consumed, &err);
+                    if (err != ERR_NONE) return err;
+                    pos += consumed;
+
+                    /* Print the string */
+                    if (desc.length > 0 && desc.ptr > 0) {
+                        const char *str = (const char *)(state->memory + desc.ptr);
+                        for (uint8_t i = 0; i < desc.length; i++) {
+                            io_putchar(state, str[i]);
+                        }
                     }
-                    if (pos < len && tokenized[pos] == '"') pos++;
                     need_newline = true;
                 } else if (ch == ';') {
                     /* Semicolon - no space */
@@ -399,10 +428,15 @@ static basic_error_t execute_statement(basic_state_t *state,
                     }
 
                     if (pos < len && tokenized[pos] == '$') {
-                        /* String variable - append $ to name */
-                        pos++;
-                        var_name[name_len] = '$';
-                        string_desc_t desc = var_get_string(state, var_name);
+                        /* String expression - use eval_string_desc to handle concatenation */
+                        pos = save_pos;  /* Restore to start of expression */
+                        basic_error_t err;
+                        size_t consumed;
+                        string_desc_t desc = eval_string_desc(state, tokenized + pos,
+                                                              len - pos, &consumed, &err);
+                        if (err != ERR_NONE) return err;
+                        pos += consumed;
+
                         /* Print the string */
                         if (desc.length > 0 && desc.ptr > 0) {
                             const char *str = (const char *)(state->memory + desc.ptr);
@@ -519,6 +553,115 @@ static basic_error_t execute_statement(basic_state_t *state,
             stmt_new(state);
             return ERR_NONE;
 
+        case TOK_CLOAD: {
+            /* CLOAD "filename" - Load program from file */
+            pos++;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            /* Optional filename in quotes */
+            char filename[256] = "";
+            if (pos < len && tokenized[pos] == '"') {
+                pos++;  /* Skip opening quote */
+                size_t fname_len = 0;
+                while (pos < len && tokenized[pos] != '"' && fname_len < sizeof(filename) - 1) {
+                    filename[fname_len++] = (char)tokenized[pos++];
+                }
+                filename[fname_len] = '\0';
+                if (pos < len && tokenized[pos] == '"') pos++;  /* Skip closing quote */
+            }
+
+            if (filename[0] == '\0') {
+                return ERR_FC;  /* Function call error - no filename */
+            }
+
+            /* Open and read the file */
+            FILE *fp = fopen(filename, "r");
+            if (!fp) {
+                io_print_cstring(state, "?FILE NOT FOUND\r\n");
+                return ERR_NONE;
+            }
+
+            /* Clear existing program */
+            stmt_new(state);
+
+            /* Read each line and store it */
+            char line[256];
+            while (fgets(line, sizeof(line), fp)) {
+                /* Remove trailing newline/CR */
+                size_t linelen = strlen(line);
+                while (linelen > 0 && (line[linelen-1] == '\n' || line[linelen-1] == '\r')) {
+                    line[--linelen] = '\0';
+                }
+
+                if (linelen > 0) {
+                    if (!basic_execute_line(state, line)) {
+                        fclose(fp);
+                        return ERR_SN;
+                    }
+                }
+            }
+
+            fclose(fp);
+            io_print_cstring(state, "OK\r\n");
+            return ERR_NONE;
+        }
+
+        case TOK_CSAVE: {
+            /* CSAVE "filename" - Save program to file */
+            pos++;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            /* Filename in quotes */
+            char filename[256] = "";
+            if (pos < len && tokenized[pos] == '"') {
+                pos++;  /* Skip opening quote */
+                size_t fname_len = 0;
+                while (pos < len && tokenized[pos] != '"' && fname_len < sizeof(filename) - 1) {
+                    filename[fname_len++] = (char)tokenized[pos++];
+                }
+                filename[fname_len] = '\0';
+                if (pos < len && tokenized[pos] == '"') pos++;  /* Skip closing quote */
+            }
+
+            if (filename[0] == '\0') {
+                return ERR_FC;  /* Function call error - no filename */
+            }
+
+            /* Open file for writing */
+            FILE *fp = fopen(filename, "w");
+            if (!fp) {
+                io_print_cstring(state, "?FILE ERROR\r\n");
+                return ERR_NONE;
+            }
+
+            /* Iterate through program and write lines */
+            uint8_t *ptr = state->memory + state->program_start;
+            uint8_t *end = state->memory + state->program_end;
+
+            while (ptr < end) {
+                uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
+                uint16_t line_num = (uint16_t)(ptr[2] | (ptr[3] << 8));
+
+                if (link == 0) break;
+
+                /* Detokenize the line */
+                uint8_t *line_start = ptr + 4;
+                uint8_t *line_end = state->memory + link;
+                size_t line_len = (size_t)(line_end - line_start - 1);  /* -1 for null */
+
+                char detok_buf[512];
+                size_t detok_len = detokenize_line(line_start, line_len, detok_buf, sizeof(detok_buf));
+
+                fprintf(fp, "%d %.*s\n", line_num, (int)detok_len, detok_buf);
+
+                ptr = state->memory + link;
+            }
+
+            fclose(fp);
+            io_print_cstring(state, "OK\r\n");
+            return ERR_NONE;
+        }
+
         case TOK_CLEAR: {
             pos++;
             int string_space = 0;
@@ -531,8 +674,13 @@ static basic_error_t execute_statement(basic_state_t *state,
             return stmt_clear(state, string_space);
         }
 
-        case TOK_CONT:
-            return stmt_cont(state);
+        case TOK_CONT: {
+            basic_error_t err = stmt_cont(state);
+            if (err != ERR_NONE) return err;
+            /* Resume program execution */
+            basic_run_program(state);
+            return ERR_NONE;
+        }
 
         case TOK_END:
             return stmt_end(state);
@@ -771,9 +919,13 @@ static basic_error_t execute_statement(basic_state_t *state,
             pos++;
             while (pos < len && tokenized[pos] == ' ') pos++;
 
-            /* If condition is false, skip rest of line */
+            /* If condition is false, skip rest of line (not just THEN clause) */
             if (!stmt_if_eval(condition)) {
-                /* Skip to end of line - don't execute THEN clause */
+                /* Find end of line (null terminator) and set text_ptr there */
+                /* This causes the main loop to advance to the next line */
+                uint8_t *ptr = state->memory + state->text_ptr;
+                while (*ptr != '\0') ptr++;
+                state->text_ptr = (uint16_t)(ptr - state->memory);
                 return ERR_NONE;
             }
 
@@ -788,8 +940,47 @@ static basic_error_t execute_statement(basic_state_t *state,
                 return stmt_goto(state, line_num);
             }
 
-            /* Execute the THEN clause as a statement */
-            return execute_statement(state, tokenized + pos, len - pos);
+            /* Execute ALL statements in the THEN clause (colon-separated) */
+            while (pos < len && tokenized[pos] != '\0') {
+                /* Find end of this statement (colon or end of line) */
+                size_t stmt_len = 0;
+                bool in_string = false;
+                size_t scan = pos;
+                while (scan < len && tokenized[scan] != '\0') {
+                    if (tokenized[scan] == '"') {
+                        in_string = !in_string;
+                    } else if (tokenized[scan] == ':' && !in_string) {
+                        break;
+                    }
+                    scan++;
+                    stmt_len++;
+                }
+
+                /* Save text_ptr to detect flow control changes */
+                uint16_t saved_ptr = state->text_ptr;
+
+                /* Execute this statement */
+                err = execute_statement(state, tokenized + pos, stmt_len);
+                if (err != ERR_NONE) return err;
+
+                /* If a flow control statement modified text_ptr, stop */
+                /* (GOTO, GOSUB, NEXT continuing loop, etc.) */
+                if (state->text_ptr != saved_ptr) {
+                    return ERR_NONE;
+                }
+
+                /* Move past this statement */
+                pos += stmt_len;
+
+                /* Skip the colon if present */
+                if (pos < len && tokenized[pos] == ':') {
+                    pos++;
+                }
+
+                /* Skip whitespace before next statement */
+                while (pos < len && tokenized[pos] == ' ') pos++;
+            }
+            return ERR_NONE;
         }
 
         case TOK_INPUT: {
@@ -831,20 +1022,31 @@ static basic_error_t execute_statement(basic_state_t *state,
             while (pos < len && tokenized[pos] == ' ') pos++;
 
             if (pos < len && isalpha(tokenized[pos])) {
-                char var_name[3] = {0};
-                var_name[0] = (char)tokenized[pos++];
+                char var_name[4] = {0};  /* Room for 2 chars + $ + null */
+                size_t name_len = 0;
+                var_name[name_len++] = (char)tokenized[pos++];
                 if (pos < len && isalnum(tokenized[pos])) {
-                    var_name[1] = (char)tokenized[pos++];
+                    var_name[name_len++] = (char)tokenized[pos++];
                 }
 
-                /* Parse value from input */
-                mbf_t value;
-                size_t consumed = io_parse_number(input_buf, &value);
-                if (consumed == 0) {
-                    value = MBF_ZERO;
-                }
+                /* Check for string variable */
+                if (pos < len && tokenized[pos] == '$') {
+                    pos++;  /* Skip $ */
+                    var_name[name_len] = '$';
 
-                return stmt_let_numeric(state, var_name, value);
+                    /* Create string from input and assign */
+                    string_desc_t desc = string_create(state, input_buf);
+                    return stmt_let_string(state, var_name, desc);
+                } else {
+                    /* Parse numeric value from input */
+                    mbf_t value;
+                    size_t consumed = io_parse_number(input_buf, &value);
+                    if (consumed == 0) {
+                        value = MBF_ZERO;
+                    }
+
+                    return stmt_let_numeric(state, var_name, value);
+                }
             }
             return ERR_SN;
         }
@@ -868,12 +1070,47 @@ static basic_error_t execute_statement(basic_state_t *state,
                         var_name[name_len++] = (char)tokenized[pos++];
                     }
 
-                    /* Check for string variable */
+                    /* Check for string variable ($ comes before array subscript) */
                     bool is_string = false;
                     if (pos < len && tokenized[pos] == '$') {
                         is_string = true;
                         var_name[name_len] = '$';
                         pos++;
+                    }
+
+                    /* Check for array subscript */
+                    int16_t idx1 = 0, idx2 = -1;
+                    bool is_array = false;
+                    if (pos < len && tokenized[pos] == '(') {
+                        is_array = true;
+                        pos++;  /* Skip ( */
+
+                        basic_error_t err;
+                        size_t consumed;
+                        mbf_t idx1_val = eval_expression(state, tokenized + pos, len - pos,
+                                                         &consumed, &err);
+                        if (err != ERR_NONE) return err;
+                        pos += consumed;
+
+                        bool overflow;
+                        idx1 = mbf_to_int16(idx1_val, &overflow);
+                        if (overflow) return ERR_BS;
+
+                        /* Check for second dimension */
+                        if (pos < len && tokenized[pos] == ',') {
+                            pos++;
+                            mbf_t idx2_val = eval_expression(state, tokenized + pos, len - pos,
+                                                             &consumed, &err);
+                            if (err != ERR_NONE) return err;
+                            pos += consumed;
+                            idx2 = mbf_to_int16(idx2_val, &overflow);
+                            if (overflow) return ERR_BS;
+                        }
+
+                        if (pos >= len || tokenized[pos] != ')') {
+                            return ERR_SN;
+                        }
+                        pos++;  /* Skip ) */
                     }
 
                     /* Read value from DATA */
@@ -882,12 +1119,26 @@ static basic_error_t execute_statement(basic_state_t *state,
                         string_desc_t value;
                         err = io_read_string(state, &value);
                         if (err != ERR_NONE) return err;
-                        err = stmt_let_string(state, var_name, value);
+                        if (is_array) {
+                            if (!array_set_string(state, var_name, idx1, idx2, value)) {
+                                return ERR_BS;
+                            }
+                            err = ERR_NONE;
+                        } else {
+                            err = stmt_let_string(state, var_name, value);
+                        }
                     } else {
                         mbf_t value;
                         err = io_read_numeric(state, &value);
                         if (err != ERR_NONE) return err;
-                        err = stmt_let_numeric(state, var_name, value);
+                        if (is_array) {
+                            if (!array_set_numeric(state, var_name, idx1, idx2, value)) {
+                                return ERR_BS;
+                            }
+                            err = ERR_NONE;
+                        } else {
+                            err = stmt_let_numeric(state, var_name, value);
+                        }
                     }
                     if (err != ERR_NONE) return err;
                 }
@@ -1119,6 +1370,22 @@ static basic_error_t execute_statement(basic_state_t *state,
             return stmt_poke(state, (uint16_t)addr, (uint8_t)value);
         }
 
+        case TOK_NULL: {
+            pos++;
+            basic_error_t err;
+            size_t consumed;
+
+            mbf_t count_val = eval_expression(state, tokenized + pos, len - pos,
+                                              &consumed, &err);
+            if (err != ERR_NONE) return err;
+
+            bool overflow;
+            int16_t count = mbf_to_int16(count_val, &overflow);
+            if (overflow) return ERR_FC;
+
+            return stmt_null(state, count);
+        }
+
         default:
             /* Check for variable assignment (LET is optional) */
             if (isalpha(cmd) || cmd == TOK_LET) {
@@ -1139,11 +1406,18 @@ static basic_error_t execute_statement(basic_state_t *state,
                     return ERR_SN;
                 }
 
-                /* Check for array subscript or string variable */
+                /* Check for string variable/array first ($ comes before () in BASIC) */
                 int16_t idx1 = 0, idx2 = -1;
                 bool is_array = false;
                 bool is_string = false;
 
+                if (pos < len && tokenized[pos] == '$') {
+                    is_string = true;
+                    var_name[name_len] = '$';  /* Append $ to var_name */
+                    pos++;
+                }
+
+                /* Now check for array subscript */
                 if (pos < len && tokenized[pos] == '(') {
                     /* Array element */
                     is_array = true;
@@ -1179,13 +1453,6 @@ static basic_error_t execute_statement(basic_state_t *state,
                     pos++;
                 }
 
-                /* Check for string variable/array */
-                if (pos < len && tokenized[pos] == '$') {
-                    is_string = true;
-                    var_name[name_len] = '$';  /* Append $ to var_name */
-                    pos++;
-                }
-
                 /* Skip to = */
                 while (pos < len && tokenized[pos] == ' ') pos++;
 
@@ -1198,50 +1465,22 @@ static basic_error_t execute_statement(basic_state_t *state,
                 while (pos < len && tokenized[pos] == ' ') pos++;
 
                 if (is_string) {
-                    /* Parse string expression */
-                    if (pos < len && tokenized[pos] == '"') {
-                        /* String literal */
-                        pos++;  /* Skip opening quote */
-                        size_t str_start = pos;
-                        while (pos < len && tokenized[pos] != '"' && tokenized[pos] != '\0') {
-                            pos++;
-                        }
-                        size_t str_len = pos - str_start;
-                        if (pos < len && tokenized[pos] == '"') pos++;
+                    /* Parse string expression (handles literals, variables, functions, concatenation) */
+                    basic_error_t err;
+                    size_t consumed;
+                    string_desc_t desc = eval_string_desc(state, tokenized + pos,
+                                                          len - pos, &consumed, &err);
+                    if (err != ERR_NONE) return err;
+                    pos += consumed;
 
-                        /* Create string descriptor */
-                        string_desc_t desc = string_create_len(state,
-                            (const char *)(tokenized + str_start), (uint8_t)str_len);
-
-                        return stmt_let_string(state, var_name, desc);
-                    } else if (pos < len && isalpha(tokenized[pos])) {
-                        /* String variable reference */
-                        char src_name[4] = {0};  /* Room for 2 chars + $ + null */
-                        size_t src_len = 0;
-                        src_name[src_len++] = (char)tokenized[pos++];
-                        if (pos < len && isalnum(tokenized[pos])) {
-                            src_name[src_len++] = (char)tokenized[pos++];
+                    if (is_array) {
+                        /* String array element assignment */
+                        if (!array_set_string(state, var_name, idx1, idx2, desc)) {
+                            return ERR_BS;  /* Bad subscript */
                         }
-                        if (pos < len && tokenized[pos] == '$') {
-                            pos++;
-                            /* Append $ to name for proper lookup */
-                            src_name[src_len] = '$';
-                            /* Get string from source variable */
-                            string_desc_t desc = var_get_string(state, src_name);
-                            return stmt_let_string(state, var_name, desc);
-                        }
-                        return ERR_TM;  /* Type mismatch */
-                    } else if (pos < len && TOK_IS_STRING_FUNC(tokenized[pos])) {
-                        /* String function */
-                        basic_error_t err;
-                        size_t consumed;
-                        string_desc_t desc = eval_string_desc(state, tokenized + pos,
-                                                              len - pos, &consumed, &err);
-                        if (err != ERR_NONE) return err;
-                        return stmt_let_string(state, var_name, desc);
-                    } else {
-                        return ERR_SN;
+                        return ERR_NONE;
                     }
+                    return stmt_let_string(state, var_name, desc);
                 } else {
                     /* Evaluate numeric expression */
                     basic_error_t err;
@@ -1272,8 +1511,24 @@ void basic_run_program(basic_state_t *state) {
     if (!state) return;
 
     state->running = true;
+    basic_setup_interrupt(state);
 
     while (state->running) {
+        /* Check for Ctrl-C interrupt */
+        if (g_interrupt_flag) {
+            g_interrupt_flag = 0;
+            fprintf(state->output, "\nBREAK");
+            if (state->current_line > 0) {
+                fprintf(state->output, " IN %u", state->current_line);
+            }
+            fprintf(state->output, "\n");
+            state->running = false;
+            state->can_continue = true;
+            state->cont_line = state->current_line;
+            state->cont_ptr = state->text_ptr;
+            break;
+        }
+
         /* Check if we're at a valid position */
         if (state->text_ptr >= state->program_end) {
             state->running = false;
@@ -1336,12 +1591,11 @@ void basic_run_program(basic_state_t *state) {
             break;
         }
 
-        /* Check if execution was stopped by STOP/END or flow control */
-        if (!state->running) break;
-
         /* Check if statement changed text_ptr (GOTO, GOSUB, NEXT, etc.) */
         if (state->text_ptr != saved_text_ptr) {
             /* Statement modified text_ptr - don't override it */
+            /* Check if execution was stopped */
+            if (!state->running) break;
             continue;
         }
 
@@ -1358,7 +1612,19 @@ void basic_run_program(basic_state_t *state) {
                 state->text_ptr = link + 4;  /* Skip link and line number */
             }
         }
+
+        /* Check if execution was stopped by STOP (after advancing text_ptr) */
+        /* This ensures CONT will resume from the next statement */
+        if (!state->running) {
+            if (state->can_continue) {
+                /* Save continuation point at next statement */
+                state->cont_ptr = state->text_ptr;
+            }
+            break;
+        }
     }
+
+    basic_clear_interrupt();
 }
 
 /*

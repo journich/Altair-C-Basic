@@ -74,11 +74,12 @@ uint8_t *var_find(basic_state_t *state, const char *name) {
     uint8_t encoded[2];
     encode_var_name(name, encoded);
 
-    /* Scan through variable area */
+    /* Scan through variable area only (not arrays) */
+    /* Variables occupy var_count_ * VAR_SIZE bytes starting at var_start */
     uint8_t *ptr = state->memory + state->var_start;
-    uint8_t *end = state->memory + state->array_start;
+    uint8_t *end = ptr + state->var_count_ * VAR_SIZE;
 
-    while (ptr + VAR_SIZE <= end) {
+    while (ptr < end) {
         if (name_matches(encoded, ptr)) {
             return ptr;
         }
@@ -104,9 +105,10 @@ uint8_t *var_create(basic_state_t *state, const char *name) {
     /* If arrays exist, we need to make room by moving them up */
     uint16_t var_end = state->var_start + state->var_count_ * VAR_SIZE;
 
-    /* If there are arrays (array_start > var_end), we need to shift them */
+    /* Arrays are stored from var_end to array_start */
+    /* Check if arrays exist (array_start > var_end means there are arrays) */
     if (state->array_start > var_end) {
-        /* Move arrays up by VAR_SIZE bytes */
+        /* There are arrays - move them up by VAR_SIZE bytes */
         size_t array_bytes = state->array_start - var_end;
         memmove(state->memory + var_end + VAR_SIZE,
                 state->memory + var_end,

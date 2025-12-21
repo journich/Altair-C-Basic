@@ -230,6 +230,16 @@ bool basic_save_file(basic_state_t *state, const char *filename);
 void basic_run_program(basic_state_t *state);
 
 /*
+ * Set up Ctrl-C interrupt handling.
+ */
+void basic_setup_interrupt(basic_state_t *state);
+
+/*
+ * Clear Ctrl-C interrupt handling.
+ */
+void basic_clear_interrupt(void);
+
+/*
  * List program lines (like typing LIST).
  */
 void basic_list_program(basic_state_t *state, uint16_t start, uint16_t end);
