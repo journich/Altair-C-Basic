@@ -4,11 +4,57 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * main.c - Altair 8K BASIC 4.0 Entry Point
+/**
+ * @file main.c
+ * @brief Altair 8K BASIC 4.0 Entry Point
  *
  * This is a clean-room C17 implementation of Microsoft's historic
- * Altair 8K BASIC 4.0 interpreter.
+ * Altair 8K BASIC 4.0 interpreter, originally written in 8080 assembly
+ * for the MITS Altair 8800 computer in 1975-1976.
+ *
+ * ## Usage
+ *
+ * ```
+ *   basic8k                    # Start interactive interpreter
+ *   basic8k program.bas        # Load and run a BASIC program
+ *   basic8k -m 32768 game.bas  # Run with 32KB memory
+ *   basic8k -w 80 program.bas  # Set 80-column terminal width
+ *   basic8k -n program.bas     # Load without running (for debugging)
+ * ```
+ *
+ * ## Command Line Options
+ *
+ * - `-m SIZE` : Set memory size in bytes (default: 65536)
+ * - `-w WIDTH` : Set terminal width in columns (default: 72)
+ * - `-n` : Load file but don't run (just enter interactive mode)
+ * - `-h` : Show help
+ *
+ * ## Startup Sequence
+ *
+ * 1. Parse command line arguments
+ * 2. Initialize interpreter state with configuration
+ * 3. If a file is specified:
+ *    - Load the BASIC program from file
+ *    - Print banner and run program (unless -n specified)
+ *    - Enter interactive mode when program ends
+ * 4. If no file specified:
+ *    - Enter interactive mode directly
+ *
+ * ## Interactive Mode
+ *
+ * In interactive mode (immediate mode), the interpreter:
+ * - Displays "OK" prompt
+ * - Accepts commands or program lines
+ * - Lines starting with a number are added to the program
+ * - Lines without a number are executed immediately
+ * - Special commands: RUN, LIST, NEW, LOAD, SAVE, etc.
+ *
+ * ## Memory Model
+ *
+ * The interpreter allocates a contiguous block of memory (default 64KB)
+ * that simulates the Altair's address space. The program, variables,
+ * arrays, and strings all live within this space, exactly as they
+ * would have on the original hardware.
  */
 
 #include "basic/basic.h"

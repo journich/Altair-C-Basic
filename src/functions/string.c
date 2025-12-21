@@ -4,14 +4,47 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * string.c - String Functions
+/**
+ * @file string.c
+ * @brief String BASIC Functions
  *
- * Implements string BASIC functions: LEN, LEFT$, RIGHT$, MID$, ASC, CHR$,
- * STR$, VAL, INSTR, SPACE$.
+ * Implements all built-in functions that operate on or return strings.
+ * Note: Low-level string operations are in src/memory/strings.c.
+ * These are the BASIC interpreter function wrappers.
  *
- * Note: The actual string manipulation is in src/memory/strings.c.
- * These are the BASIC function wrappers.
+ * ## String Query Functions
+ * - LEN(s$) - Returns length of string (0-255)
+ * - ASC(s$) - Returns ASCII value of first character (FC error if empty)
+ *
+ * ## Substring Functions
+ * - LEFT$(s$, n) - Returns leftmost n characters
+ * - RIGHT$(s$, n) - Returns rightmost n characters
+ * - MID$(s$, start, n) - Returns n characters starting at position start
+ *
+ * ## String Search
+ * - INSTR([start,] main$, search$) - Find substring, returns 1-based position
+ *
+ * ## String/Number Conversion
+ * - STR$(n) - Convert number to string (with leading space for positive)
+ * - VAL(s$) - Convert string to number (stops at first non-numeric)
+ * - HEX$(n) - Convert number to hexadecimal string
+ * - OCT$(n) - Convert number to octal string
+ *
+ * ## String Generation
+ * - CHR$(n) - Single character from ASCII code (0-255)
+ * - SPACE$(n) - String of n spaces
+ * - STRING$(n, c) - String of n copies of character c
+ *
+ * ## Return Value Conventions
+ *
+ * All functions returning strings return a string_desc_t (4-byte descriptor).
+ * A descriptor with length=0 indicates an empty string or error condition.
+ * The descriptor points to string data in the string heap (see strings.c).
+ *
+ * ## Index Conventions
+ *
+ * All position arguments (MID$ start, INSTR start) are 1-based to match
+ * BASIC conventions. Internal processing converts to 0-based indexing.
  */
 
 #include "basic/basic.h"

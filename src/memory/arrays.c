@@ -4,20 +4,55 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * arrays.c - Array Handling
+/**
+ * @file arrays.c
+ * @brief Array Storage and Access
  *
  * Implements array storage and access matching the original 8K BASIC.
+ * Supports 1D and 2D arrays for both numeric and string values.
  *
- * Array format in memory:
- *   Bytes 0-1: Array name (same encoding as variables)
- *   Byte 2: Number of dimensions (1 or 2)
- *   Bytes 3-4: Size of dimension 1 (little-endian)
- *   Bytes 5-6: Size of dimension 2 (if 2D, else not present)
- *   Following: Array data (4 bytes per element for numeric, varies for string)
+ * ## Array Format in Memory
  *
- * Arrays are stored after simple variables and grow upward.
- * Default dimension is 10 (0-10, so 11 elements) if not DIMmed.
+ * ### 1D Array Header (5 bytes)
+ * ```
+ *   +-------+-------+------+-------+-------+
+ *   |Name[0]|Name[1]|Dims=1|Dim1_lo|Dim1_hi|
+ *   +-------+-------+------+-------+-------+
+ *   Byte 0   Byte 1  Byte 2 Byte 3  Byte 4
+ * ```
+ *
+ * ### 2D Array Header (7 bytes)
+ * ```
+ *   +-------+-------+------+-------+-------+-------+-------+
+ *   |Name[0]|Name[1]|Dims=2|Dim1_lo|Dim1_hi|Dim2_lo|Dim2_hi|
+ *   +-------+-------+------+-------+-------+-------+-------+
+ *   Byte 0   Byte 1  Byte 2 Byte 3  Byte 4  Byte 5  Byte 6
+ * ```
+ *
+ * After the header, array data follows:
+ * - 4 bytes per element (MBF for numeric, descriptor for string)
+ * - Row-major order for 2D arrays
+ *
+ * ## Subscript Handling
+ *
+ * - Subscripts are 0-based internally
+ * - DIM A(10) creates elements 0-10 (11 elements total)
+ * - If not DIMmed, default dimension is 10
+ * - 2D array: A(i,j) where i selects row, j selects column
+ *
+ * ## Memory Layout
+ *
+ * Arrays are stored contiguously after simple variables:
+ * ```
+ *   [Variables] [Array1 Header + Data] [Array2 Header + Data] ...
+ *               ^                                              ^
+ *               var_end                                     array_start
+ * ```
+ *
+ * ## Auto-Creation
+ *
+ * If a program accesses A(5) without a prior DIM A(), the array
+ * is automatically created with dimension 10 (elements 0-10).
  */
 
 #include "basic/basic.h"

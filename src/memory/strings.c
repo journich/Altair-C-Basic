@@ -4,26 +4,57 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * strings.c - String Space Management
+/**
+ * @file strings.c
+ * @brief String Space Management
  *
  * Implements string storage matching the original 8K BASIC.
+ * String data is stored in a heap at the top of memory.
  *
- * String space layout:
- *   - String space starts at string_start and grows downward toward arrays
- *   - string_end is the top of memory (highest address)
- *   - Strings are stored with data at the high end, growing down
- *   - Each string variable/array element holds a descriptor pointing to the data
+ * ## String Space Layout
  *
- * String descriptor (4 bytes):
- *   Byte 0: Length (0-255)
- *   Byte 1: Reserved
- *   Bytes 2-3: Pointer to string data (little-endian)
+ * String space occupies the top of memory and grows downward:
+ * ```
+ *   [Program][Vars][Arrays] ... FREE SPACE ... [String Data]
+ *                              ^               ^            ^
+ *                         array_start     string_start  string_end
  *
- * Garbage collection:
- *   When string space is exhausted, collect unreferenced strings.
- *   Original uses mark-and-sweep: scan all string variables/arrays,
- *   mark referenced strings, compact string space.
+ *   String space grows DOWN (string_start decreases as strings are added)
+ *   Arrays grow UP (array_start increases as arrays are added)
+ *   When they meet, you're out of memory!
+ * ```
+ *
+ * ## String Descriptor
+ *
+ * Variables and array elements don't store string data directly.
+ * They store a 4-byte descriptor:
+ * ```
+ *   Byte 0: Length (0-255 characters)
+ *   Byte 1: Reserved (often 0)
+ *   Bytes 2-3: Pointer to string data (offset in memory, little-endian)
+ * ```
+ *
+ * ## String Functions Implemented
+ *
+ * - string_create(): Create string from C string
+ * - string_concat(): Concatenate two strings (A$ + B$)
+ * - string_left(): LEFT$(S$, N) - leftmost N characters
+ * - string_right(): RIGHT$(S$, N) - rightmost N characters
+ * - string_mid(): MID$(S$, Start, Len) - substring
+ * - string_len(): LEN(S$) - string length
+ * - string_asc(): ASC(S$) - ASCII value of first character
+ * - string_chr(): CHR$(N) - character from ASCII value
+ * - string_val(): VAL(S$) - string to number
+ * - string_str(): STR$(N) - number to string
+ *
+ * ## Garbage Collection
+ *
+ * When string space is exhausted, garbage collection runs:
+ * 1. Scan all string variables and array elements
+ * 2. Copy referenced strings to a compacted area
+ * 3. Update all descriptors to point to new locations
+ *
+ * This is O(n²) but worked well for small memory sizes of the era.
  */
 
 #include "basic/basic.h"

@@ -4,11 +4,44 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * mbf.c - Microsoft Binary Format Core Operations
+/**
+ * @file mbf.c
+ * @brief Microsoft Binary Format - Core Operations
  *
- * This implements the core MBF operations that match the original
- * 8K BASIC implementation exactly.
+ * This module implements the core MBF floating-point operations:
+ * - Error handling (thread-safe)
+ * - Mantissa access and manipulation
+ * - Normalization
+ * - Sign operations (negation, absolute value, sign detection)
+ * - Comparison
+ * - Integer/MBF conversion
+ * - String/MBF conversion
+ * - INT function (floor)
+ *
+ * ## MBF Format Reminder
+ *
+ * MBF is a 4-byte floating-point format:
+ * ```
+ *   Byte 0: Mantissa bits 0-7 (LSB)
+ *   Byte 1: Mantissa bits 8-15
+ *   Byte 2: Mantissa bits 16-22 + sign in bit 7
+ *   Byte 3: Biased exponent (bias = 129)
+ *
+ *   Value = (-1)^sign * (1.mantissa) * 2^(exponent - 129)
+ * ```
+ *
+ * The leading 1 bit in the mantissa is implicit (not stored).
+ *
+ * ## Original Source Reference
+ *
+ * These functions match the behavior of routines in 8kbas_src.mac:
+ * - Normalization: lines 3339-3365
+ * - Sign test: RST 5 (FTestSign)
+ * - INT function: lines 4560-4600
+ *
+ * ## Thread Safety
+ *
+ * Error state is thread-local, so each thread has its own error flag.
  */
 
 #include "basic/mbf.h"
@@ -16,24 +49,63 @@
 #include <stdio.h>
 #include <ctype.h>
 
-/* Thread-local error state */
+
+/*============================================================================
+ * ERROR HANDLING
+ *
+ * MBF operations set error flags instead of using exceptions.
+ * Error state is thread-local for thread safety.
+ *============================================================================*/
+
+/** Thread-local error state for current MBF operation */
 static _Thread_local mbf_error_t mbf_last_error = MBF_OK;
 
+/**
+ * @brief Get the last MBF error
+ * @return Error code from most recent operation
+ */
 mbf_error_t mbf_get_error(void) {
     return mbf_last_error;
 }
 
+/**
+ * @brief Clear the MBF error state
+ *
+ * Call before a sequence of operations to detect errors.
+ */
 void mbf_clear_error(void) {
     mbf_last_error = MBF_OK;
 }
 
+/**
+ * @brief Set the MBF error state
+ *
+ * Called internally by MBF operations when an error occurs.
+ *
+ * @param err Error code to set
+ */
 void mbf_set_error(mbf_error_t err) {
     mbf_last_error = err;
 }
 
-/*
- * Get the 24-bit mantissa with implicit leading 1 bit.
- * For zero, returns 0.
+
+/*============================================================================
+ * MANTISSA ACCESS
+ *
+ * The mantissa is stored in 3 bytes with an implicit leading 1 bit.
+ * These functions provide convenient access to the full 24-bit mantissa.
+ *============================================================================*/
+
+/**
+ * @brief Get the 24-bit mantissa with implicit leading 1 bit
+ *
+ * Reconstructs the full mantissa from the stored bytes and adds
+ * the implicit leading 1 bit (bit 23).
+ *
+ * For zero values (exponent = 0), returns 0.
+ *
+ * @param a MBF value
+ * @return 24-bit mantissa with bit 23 set (0x800000 to 0xFFFFFF)
  */
 uint32_t mbf_get_mantissa24(mbf_t a) {
     if (a.bytes.exponent == 0) {
@@ -103,8 +175,18 @@ mbf_t mbf_normalize(mbf_t a) {
     return mbf_make(negative, exponent, mantissa);
 }
 
-/*
- * Negate a number.
+
+/*============================================================================
+ * SIGN OPERATIONS
+ *============================================================================*/
+
+/**
+ * @brief Negate an MBF number
+ *
+ * Flips the sign bit. Zero remains zero (sign of zero is undefined).
+ *
+ * @param a Value to negate
+ * @return -a
  */
 mbf_t mbf_neg(mbf_t a) {
     if (mbf_is_zero(a)) {
@@ -133,9 +215,24 @@ int mbf_sign(mbf_t a) {
     return (a.bytes.mantissa_hi & 0x80) ? -1 : 1;
 }
 
-/*
- * Compare two numbers.
- * Returns: -1 if a < b, 0 if a == b, 1 if a > b.
+
+/*============================================================================
+ * COMPARISON
+ *============================================================================*/
+
+/**
+ * @brief Compare two MBF numbers
+ *
+ * Three-way comparison like strcmp().
+ *
+ * Algorithm:
+ * 1. Compare signs (negative < zero < positive)
+ * 2. If same sign, compare exponents
+ * 3. If same exponent, compare mantissas
+ *
+ * @param a First value
+ * @param b Second value
+ * @return -1 if a < b, 0 if a == b, 1 if a > b
  */
 int mbf_cmp(mbf_t a, mbf_t b) {
     int sign_a = mbf_sign(a);
@@ -170,8 +267,20 @@ int mbf_cmp(mbf_t a, mbf_t b) {
     return (sign_a > 0) ? mant_cmp : -mant_cmp;
 }
 
-/*
- * Convert 16-bit signed integer to MBF.
+
+/*============================================================================
+ * INTEGER CONVERSION
+ *
+ * These functions convert between MBF and integer types.
+ * Note that MBF has 24 bits of mantissa, so integers larger than
+ * 16,777,216 (2^24) may lose precision.
+ *============================================================================*/
+
+/**
+ * @brief Convert 16-bit signed integer to MBF
+ *
+ * @param n Integer value (-32768 to 32767)
+ * @return MBF representation of n
  */
 mbf_t mbf_from_int16(int16_t n) {
     if (n == 0) {

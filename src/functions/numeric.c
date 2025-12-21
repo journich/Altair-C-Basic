@@ -4,11 +4,52 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * numeric.c - Numeric Functions
+/**
+ * @file numeric.c
+ * @brief Numeric BASIC Functions
  *
- * Implements numeric BASIC functions: SGN, INT, ABS, SQR, etc.
- * Also implements system functions: PEEK, FRE, POS.
+ * Implements all built-in numeric functions that return numbers:
+ *
+ * ## Mathematical Functions
+ * - SGN(x) - Sign of number: -1, 0, or 1
+ * - INT(x) - Floor (truncate toward negative infinity)
+ * - ABS(x) - Absolute value
+ * - SQR(x) - Square root (x >= 0)
+ *
+ * ## Transcendental Functions
+ * - SIN(x) - Sine (radians)
+ * - COS(x) - Cosine (radians)
+ * - TAN(x) - Tangent (radians)
+ * - ATN(x) - Arctangent (returns radians)
+ * - LOG(x) - Natural logarithm (x > 0)
+ * - EXP(x) - e^x (exponential)
+ *
+ * ## Random Numbers
+ * - RND(x) - Random number (see rnd.c for algorithm)
+ *
+ * ## System Functions
+ * - PEEK(addr) - Read byte from memory address
+ * - FRE(0) - Return free memory bytes
+ * - POS(0) - Return current cursor column (1-based)
+ * - INP(port) - Read from I/O port (stub)
+ * - USR(addr) - Call machine code (stub)
+ *
+ * ## IEEE-to-MBF Conversion
+ *
+ * This file also contains `mbf_to_double()` and `mbf_from_double()` which
+ * convert between Microsoft Binary Format and IEEE 754 double precision.
+ * These are used for transcendental functions which currently use the
+ * C math library rather than the original polynomial approximations.
+ *
+ * ## Implementation Notes
+ *
+ * The transcendental functions (SIN, COS, TAN, ATN, LOG, EXP) currently
+ * convert MBF to IEEE double, call the C math library, and convert back.
+ * This produces results that are close but not byte-for-byte identical
+ * to the original 8K BASIC which used Chebyshev polynomial approximations.
+ *
+ * For exact compatibility, these could be replaced with the original
+ * polynomial implementations from 8kbas_src.mac.
  */
 
 #include "basic/basic.h"

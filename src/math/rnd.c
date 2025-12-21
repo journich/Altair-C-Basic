@@ -4,20 +4,55 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * rnd.c - Random Number Generator
+/**
+ * @file rnd.c
+ * @brief Random Number Generator
  *
- * This implements the EXACT RND algorithm from 8K BASIC 4.0
- * (8kbas_src.mac lines 4401-4499).
+ * This implements the EXACT RND algorithm from Altair 8K BASIC 4.0.
+ * The algorithm must be exactly reproduced because many classic BASIC
+ * programs rely on specific RND sequences for gameplay (e.g., the ship
+ * placement in Super Star Trek).
  *
- * The algorithm is a two-stage table-based generator:
- * 1. Multiply seed by one of 8 constants (indexed by counter3 & 7)
- * 2. Add one of 4 constants (indexed by counter2 & 3)
- * 3. Scramble bytes: swap lo and hi, XOR with 0x4F
- * 4. Set exponent to 0x80 (forces value between 0.5 and 1.0)
- * 5. Normalize the result
+ * ## Algorithm Overview
  *
- * Counter1 wraps at 0xAB (171) and triggers extra scrambling.
+ * This is a two-stage table-based linear congruential generator:
+ *
+ * ```
+ *   Stage 1: result = seed * MULTIPLIER_TABLE[counter3 & 7]
+ *   Stage 2: result = result + ADDEND_TABLE[counter2 & 3]
+ *   Scramble: swap bytes, XOR with 0x4F, set exponent to 0x80
+ *   Normalize the result
+ * ```
+ *
+ * ## RND Function Behavior
+ *
+ * - RND(X) where X > 0: Returns next random number (0 < result < 1)
+ * - RND(0): Returns the last random number generated
+ * - RND(X) where X < 0: Reseeds the generator and returns first number
+ *
+ * Note: Negative argument resets counters but does NOT use the argument
+ * value as the seed. This matches the original behavior.
+ *
+ * ## Counter System
+ *
+ * Three counters control the sequence:
+ * - counter1: Wraps at 0xAB (171), triggers extra byte scrambling
+ * - counter2: Increments each call, mod 4 selects addend
+ * - counter3: Set from (seed_lo + counter3) & 7, selects multiplier
+ *
+ * ## Original Source Reference
+ *
+ * From 8kbas_src.mac lines 4401-4499:
+ * - Lines 4401-4420: RND entry point and argument handling
+ * - Lines 4421-4450: Two-stage multiplication and addition
+ * - Lines 4451-4470: Byte scrambling
+ * - Lines 4471-4499: Normalization and return
+ *
+ * ## Lookup Tables
+ *
+ * The lookup tables are from addresses D1846-D1875 in the original ROM:
+ * - 8 multiplier constants (D1846-D1865)
+ * - 4 addend constants (D1866-D1875)
  */
 
 #include "basic/mbf.h"

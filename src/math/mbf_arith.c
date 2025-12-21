@@ -4,25 +4,71 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * mbf_arith.c - MBF Arithmetic Operations
+/**
+ * @file mbf_arith.c
+ * @brief MBF Arithmetic Operations - Add, Subtract, Multiply, Divide
  *
- * Implementation of add, subtract, multiply, divide that matches
- * the original 8K BASIC exactly (8kbas_src.mac lines 3243-3600).
+ * This module implements the four basic arithmetic operations for
+ * MBF floating-point numbers. These algorithms are carefully matched
+ * to the original 8K BASIC implementation.
+ *
+ * ## Original Source Reference
+ *
+ * The algorithms are from 8kbas_src.mac:
+ * - Addition: lines 3243-3365 (FAdd, with normalization)
+ * - Subtraction: (implemented as add + negate)
+ * - Multiplication: lines 3518-3600 (FMul)
+ * - Division: lines 3601-3700 (FDiv)
+ *
+ * ## Algorithm Notes
+ *
+ * ### Addition
+ * 1. Handle zero cases (a+0 = a, 0+b = b)
+ * 2. Align mantissas by shifting the smaller value right
+ * 3. Add or subtract mantissas based on signs
+ * 4. Normalize the result
+ *
+ * ### Multiplication
+ * 1. Handle zero cases (a*0 = 0, 0*b = 0)
+ * 2. Add exponents, subtract bias once
+ * 3. Multiply 24-bit mantissas -> 48-bit product
+ * 4. Take top 24 bits of product
+ * 5. XOR signs for result sign
+ * 6. Normalize
+ *
+ * ### Division
+ * 1. Check for division by zero
+ * 2. Handle zero dividend
+ * 3. Subtract exponents, add bias once
+ * 4. Divide mantissas
+ * 5. XOR signs for result sign
+ * 6. Normalize
+ *
+ * ## Precision
+ *
+ * All operations maintain 24-bit mantissa precision. Intermediate
+ * calculations may use 32-bit or 64-bit integers for accuracy.
  */
 
 #include "basic/mbf.h"
 #include <stdbool.h>
 
 
-/*
- * Addition: a + b
+/*============================================================================
+ * ADDITION
+ *============================================================================*/
+
+/**
+ * @brief Add two MBF numbers
  *
- * Algorithm from 8kbas_src.mac L1212 (FAdd):
- * 1. If either operand is zero, return the other
- * 2. Align mantissas by exponent difference
- * 3. Add or subtract based on signs
- * 4. Normalize result
+ * Implements floating-point addition with proper alignment and normalization.
+ *
+ * @param a First operand
+ * @param b Second operand
+ * @return Sum a + b
+ *
+ * Errors:
+ * - MBF_OVERFLOW: Result exceeds MBF range
  */
 mbf_t mbf_add(mbf_t a, mbf_t b) {
     /* Handle zero cases */
@@ -104,22 +150,45 @@ mbf_t mbf_add(mbf_t a, mbf_t b) {
     return mbf_make(result_neg, result_exp, result_mant);
 }
 
-/*
- * Subtraction: a - b
+
+/*============================================================================
+ * SUBTRACTION
+ *============================================================================*/
+
+/**
+ * @brief Subtract two MBF numbers
+ *
+ * Implemented as: a - b = a + (-b)
+ *
+ * @param a Minuend
+ * @param b Subtrahend
+ * @return Difference a - b
  */
 mbf_t mbf_sub(mbf_t a, mbf_t b) {
     return mbf_add(a, mbf_neg(b));
 }
 
-/*
- * Multiplication: a * b
+
+/*============================================================================
+ * MULTIPLICATION
+ *============================================================================*/
+
+/**
+ * @brief Multiply two MBF numbers
  *
- * Algorithm from 8kbas_src.mac L135B (FMul):
- * 1. If either operand is zero, return zero
- * 2. Add exponents (subtract bias)
- * 3. Multiply mantissas (48-bit result, take top 24)
- * 4. Result sign is XOR of operand signs
- * 5. Normalize result
+ * Implements floating-point multiplication.
+ *
+ * Key insight: When multiplying two 24-bit mantissas (each representing
+ * 1.xxx in normalized form), the product is 48 bits representing a
+ * value between 1.0 and 4.0 (approximately).
+ *
+ * @param a First operand
+ * @param b Second operand
+ * @return Product a * b
+ *
+ * Errors:
+ * - MBF_OVERFLOW: Result exceeds MBF range
+ * - MBF_UNDERFLOW: Result is too small (flushed to zero)
  */
 mbf_t mbf_mul(mbf_t a, mbf_t b) {
     /* Handle zero cases */
@@ -188,16 +257,24 @@ mbf_t mbf_mul(mbf_t a, mbf_t b) {
     return mbf_make(result_neg, (uint8_t)result_exp, result_mant);
 }
 
-/*
- * Division: a / b
+
+/*============================================================================
+ * DIVISION
+ *============================================================================*/
+
+/**
+ * @brief Divide two MBF numbers
  *
- * Algorithm from 8kbas_src.mac L13A9 (FDiv):
- * 1. If divisor is zero, error
- * 2. If dividend is zero, return zero
- * 3. Subtract exponents (add bias)
- * 4. Divide mantissas
- * 5. Result sign is XOR of operand signs
- * 6. Normalize result
+ * Implements floating-point division.
+ *
+ * @param a Dividend
+ * @param b Divisor
+ * @return Quotient a / b
+ *
+ * Errors:
+ * - MBF_DIV_ZERO: Division by zero
+ * - MBF_OVERFLOW: Result exceeds MBF range
+ * - MBF_UNDERFLOW: Result is too small
  */
 mbf_t mbf_div(mbf_t a, mbf_t b) {
     /* Check for division by zero */

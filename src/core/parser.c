@@ -4,23 +4,89 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * parser.c - Expression Parser for 8K BASIC
+/**
+ * @file parser.c
+ * @brief Expression Parser and Evaluator for 8K BASIC
  *
- * Implements a recursive descent parser that directly evaluates expressions.
- * This matches the original 8K BASIC approach where parsing and evaluation
- * are interleaved.
+ * This module implements a recursive descent parser that directly evaluates
+ * BASIC expressions. Unlike a traditional parser that builds an AST, this
+ * parser evaluates expressions as it parses them - the same approach used
+ * by the original 8K BASIC interpreter.
  *
- * Operator Precedence (lowest to highest):
- * 1. OR
- * 2. AND
- * 3. NOT (unary)
- * 4. Relational: =, <>, <, >, <=, >=
- * 5. Addition/Subtraction: +, -
- * 6. Multiplication/Division: *, /
- * 7. Exponentiation: ^
- * 8. Unary: -, +
- * 9. Primary: numbers, variables, functions, (expr)
+ * ## Parser Architecture
+ *
+ * The parser uses a hierarchy of functions, each handling a specific
+ * precedence level. Lower precedence operators are handled first:
+ *
+ * ```
+ *   eval_expression()
+ *         |
+ *         v
+ *   parse_expression()
+ *         |
+ *         v
+ *   parse_or_expr()        <- OR (lowest precedence)
+ *         |
+ *         v
+ *   parse_and_expr()       <- AND
+ *         |
+ *         v
+ *   parse_not_expr()       <- NOT (unary)
+ *         |
+ *         v
+ *   parse_relational()     <- =, <>, <, >, <=, >=
+ *         |
+ *         v
+ *   parse_additive()       <- +, -
+ *         |
+ *         v
+ *   parse_multiplicative() <- *, /
+ *         |
+ *         v
+ *   parse_power()          <- ^ (exponentiation)
+ *         |
+ *         v
+ *   parse_unary()          <- unary -, +
+ *         |
+ *         v
+ *   parse_primary()        <- numbers, variables, functions, (expr)
+ * ```
+ *
+ * ## Operator Precedence (lowest to highest)
+ *
+ * | Level | Operators        | Associativity |
+ * |-------|------------------|---------------|
+ * | 1     | OR               | Left          |
+ * | 2     | AND              | Left          |
+ * | 3     | NOT              | Unary (right) |
+ * | 4     | =, <>, <, >, <=, >=| Left        |
+ * | 5     | +, -             | Left          |
+ * | 6     | *, /             | Left          |
+ * | 7     | ^                | Left*         |
+ * | 8     | unary -, +       | Unary (right) |
+ * | 9     | primary          | -             |
+ *
+ * *Note: Standard math has ^ as right-associative, but we do left for simplicity.
+ *
+ * ## String Expression Handling
+ *
+ * String expressions are handled separately from numeric:
+ * - parse_string_term(): Single string (literal, variable, function)
+ * - parse_string_arg(): String with concatenation (+)
+ * - parse_string_function(): LEFT$, RIGHT$, MID$, CHR$, STR$
+ *
+ * String comparisons are detected in parse_relational() and handled specially.
+ *
+ * ## Error Handling
+ *
+ * Errors are recorded in the parse_state_t.error field. Once set, parsing
+ * continues but results are undefined. The caller checks for errors.
+ *
+ * ## Public Entry Points
+ *
+ * - eval_expression(): Evaluate a numeric expression
+ * - eval_string_expression(): Evaluate a string expression (returns char*)
+ * - eval_string_desc(): Evaluate a string expression (returns string_desc_t)
  */
 
 #include "basic/basic.h"
@@ -30,14 +96,37 @@
 #include <stdlib.h>
 #include <math.h>
 
-/* Parser state - tracks current position in tokenized line */
+
+/*============================================================================
+ * PARSER STATE
+ *
+ * The parse_state_t structure tracks the current position in the input
+ * and provides access to the interpreter state for variable lookup.
+ *============================================================================*/
+
+/**
+ * @brief Parser state for expression evaluation
+ *
+ * This structure is passed through all parsing functions. It contains:
+ * - Input text and current position
+ * - Reference to interpreter state (for variable access)
+ * - Error tracking
+ */
 typedef struct {
-    const uint8_t *text;    /* Tokenized text */
-    size_t pos;             /* Current position */
-    size_t len;             /* Total length */
-    basic_state_t *basic;   /* Interpreter state */
-    basic_error_t error;    /* Parse error */
+    const uint8_t *text;    /**< Tokenized input text */
+    size_t pos;             /**< Current parse position (byte offset) */
+    size_t len;             /**< Total length of input */
+    basic_state_t *basic;   /**< Interpreter state for variable lookup */
+    basic_error_t error;    /**< Error code if parsing failed */
 } parse_state_t;
+
+
+/*============================================================================
+ * FORWARD DECLARATIONS
+ *
+ * The parsing functions form a hierarchy based on operator precedence.
+ * Each level calls the next higher precedence level.
+ *============================================================================*/
 
 /* Forward declarations */
 static mbf_t parse_expression(parse_state_t *ps);
@@ -56,7 +145,20 @@ static string_desc_t parse_string_term(parse_state_t *ps);
 static string_desc_t parse_string_arg(parse_state_t *ps);
 static string_desc_t parse_string_function(parse_state_t *ps);
 
-/* Peek at current token without consuming */
+
+/*============================================================================
+ * TOKENIZED INPUT HELPERS
+ *
+ * These functions provide low-level access to the tokenized input stream.
+ * They handle the mechanics of reading and advancing through tokens.
+ *============================================================================*/
+
+/**
+ * @brief Peek at current token without consuming it
+ *
+ * @param ps Parser state
+ * @return Current token byte, or 0 if at end
+ */
 static uint8_t peek(parse_state_t *ps) {
     if (ps->pos >= ps->len) return 0;
     return ps->text[ps->pos];
@@ -93,9 +195,28 @@ static bool expect(parse_state_t *ps, uint8_t expected) {
     return false;
 }
 
-/*
- * Parse a single string term (literal, variable, or function).
- * Does not handle concatenation - use parse_string_arg for that.
+
+/*============================================================================
+ * STRING EXPRESSION PARSING
+ *
+ * String expressions are handled separately from numeric expressions.
+ * String functions (LEFT$, RIGHT$, MID$, CHR$, STR$) and string
+ * concatenation (+) are handled here.
+ *============================================================================*/
+
+/**
+ * @brief Parse a single string term
+ *
+ * Parses one of:
+ * - String literal: "HELLO"
+ * - String variable: A$
+ * - String array element: A$(1)
+ * - String function: LEFT$, RIGHT$, MID$, CHR$, STR$
+ *
+ * Does NOT handle concatenation - use parse_string_arg() for that.
+ *
+ * @param ps Parser state
+ * @return String descriptor, or {0} on error
  */
 static string_desc_t parse_string_term(parse_state_t *ps) {
     string_desc_t result = {0};
@@ -332,8 +453,22 @@ static string_desc_t parse_string_function(parse_state_t *ps) {
     return result;
 }
 
-/*
- * Parse a complete expression.
+
+/*============================================================================
+ * NUMERIC EXPRESSION PARSING
+ *
+ * These functions implement the recursive descent parser for numeric
+ * expressions. Each function handles one precedence level.
+ *============================================================================*/
+
+/**
+ * @brief Parse a complete numeric expression
+ *
+ * Entry point for numeric expression parsing. Delegates to
+ * parse_or_expr() which is the lowest precedence level.
+ *
+ * @param ps Parser state
+ * @return Evaluated result as MBF number
  */
 static mbf_t parse_expression(parse_state_t *ps) {
     skip_space(ps);
@@ -1055,8 +1190,38 @@ static mbf_t parse_function(parse_state_t *ps, uint8_t token) {
     }
 }
 
-/*
- * Public interface: Evaluate an expression from tokenized text.
+
+/*============================================================================
+ * PUBLIC INTERFACE
+ *
+ * These functions are the public entry points used by the interpreter
+ * to evaluate expressions from tokenized BASIC code.
+ *============================================================================*/
+
+/**
+ * @brief Evaluate a numeric expression from tokenized text
+ *
+ * This is the main entry point for expression evaluation. It creates
+ * a parser state and evaluates the expression at the current position.
+ *
+ * @param state Interpreter state (for variable lookup)
+ * @param text Tokenized input text
+ * @param len Length of input text
+ * @param[out] consumed Number of bytes consumed (NULL to ignore)
+ * @param[out] error Error code if evaluation failed (NULL to ignore)
+ * @return Evaluated result as MBF number
+ *
+ * Example:
+ * @code
+ *     size_t consumed;
+ *     basic_error_t err;
+ *     mbf_t result = eval_expression(state, tokenized + pos, len - pos,
+ *                                    &consumed, &err);
+ *     if (err != ERR_NONE) {
+ *         // Handle error
+ *     }
+ *     pos += consumed;
+ * @endcode
  */
 mbf_t eval_expression(basic_state_t *state, const uint8_t *text, size_t len,
                       size_t *consumed, basic_error_t *error) {
@@ -1076,9 +1241,21 @@ mbf_t eval_expression(basic_state_t *state, const uint8_t *text, size_t len,
     return result;
 }
 
-/*
- * Evaluate a string expression (for PRINT, etc.)
- * Returns pointer to string in string space, or NULL on error.
+/**
+ * @brief Evaluate a string expression and return pointer
+ *
+ * Evaluates a string expression and returns a pointer to the string
+ * data in the interpreter's memory space.
+ *
+ * @param state Interpreter state
+ * @param text Tokenized input text
+ * @param len Length of input text
+ * @param[out] consumed Number of bytes consumed
+ * @param[out] error Error code if evaluation failed
+ * @return Pointer to string data, or NULL on error/empty string
+ *
+ * @note The returned pointer is only valid until the next string
+ *       operation that might cause garbage collection.
  */
 const char *eval_string_expression(basic_state_t *state, const uint8_t *text,
                                    size_t len, size_t *consumed,

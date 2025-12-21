@@ -4,19 +4,54 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * tokenizer.c - BASIC keyword tokenization
+/**
+ * @file tokenizer.c
+ * @brief BASIC Keyword Tokenization
  *
  * Converts BASIC keywords to single-byte tokens for compact storage.
- * This exactly matches the original 8K BASIC tokenization.
+ * This exactly matches the original Altair 8K BASIC tokenization.
  *
- * Tokenization rules:
- * - Keywords are case-insensitive and become single byte tokens (0x81-0xC6)
- * - Strings in quotes are preserved as-is
- * - Numbers are preserved as-is (stored as ASCII)
- * - After REM or DATA: rest of line preserved literally
- * - Operators (+, -, *, /, ^, >, <, =) are tokenized
- * - Special: TAB( and SPC( include the opening parenthesis
+ * ## Why Tokenize?
+ *
+ * In 1976, memory was extremely limited. A typical Altair 8800 might have
+ * only 4-16KB of RAM. Tokenization saves space:
+ * - "PRINT" (5 chars) -> 0x97 (1 byte) - saves 4 bytes per occurrence
+ * - "GOSUB" (5 chars) -> 0x8D (1 byte) - saves 4 bytes per occurrence
+ *
+ * A typical BASIC program might have hundreds of keywords, so this
+ * adds up to significant savings.
+ *
+ * ## Tokenization Rules
+ *
+ * 1. **Keywords** become single-byte tokens (0x81-0xC6)
+ *    - Case-insensitive: "print", "PRINT", "Print" all become 0x97
+ *    - Can be embedded in identifiers: FORI=1TO10 parses as FOR I = 1 TO 10
+ *
+ * 2. **Strings in quotes** are preserved exactly
+ *    - "HELLO" stays as "HELLO" (with quote characters)
+ *
+ * 3. **Numbers** are preserved as ASCII
+ *    - Numbers are not converted to binary during tokenization
+ *    - Conversion happens during expression evaluation
+ *
+ * 4. **After REM**: rest of line is preserved literally
+ *    - REM is a comment, everything after it is ignored
+ *    - Colons do NOT end a REM statement
+ *
+ * 5. **After DATA**: content is preserved until colon
+ *    - DATA values are not tokenized
+ *    - Colon ends DATA and resumes tokenization
+ *
+ * 6. **Operators** are tokenized for consistency
+ *    - +, -, *, /, ^, >, <, = all have token values
+ *
+ * 7. **Special tokens**: TAB( and SPC( include the parenthesis
+ *    - This is for compatibility with original BASIC
+ *
+ * ## Detokenization
+ *
+ * The LIST command uses detokenize_line() to convert tokens back to
+ * readable keywords.
  */
 
 #include "basic/tokens.h"
@@ -25,9 +60,24 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-/*
- * Keyword table - keywords in token order (0x81 = END, etc.)
- * Order MUST match the token values in tokens.h.
+
+/*============================================================================
+ * KEYWORD TABLE
+ *
+ * This table maps token values to keyword strings. The order MUST match
+ * the token values defined in tokens.h (0x81 = END, 0x82 = FOR, etc.).
+ *============================================================================*/
+
+/**
+ * @brief Keyword table mapping token values to strings
+ *
+ * Index 0 = token 0x81 (END)
+ * Index 1 = token 0x82 (FOR)
+ * ... and so on.
+ *
+ * Used by:
+ * - tokenize_line(): Match keywords in input
+ * - detokenize_line(): Convert tokens back to keywords for LIST
  */
 const char *const KEYWORD_TABLE[] = {
     /* Statements 0x81-0x9D */
@@ -46,10 +96,19 @@ const char *const KEYWORD_TABLE[] = {
     NULL
 };
 
+/** Number of keywords in the table */
 const size_t KEYWORD_COUNT = (sizeof(KEYWORD_TABLE) / sizeof(KEYWORD_TABLE[0])) - 1;
 
-/*
- * Get keyword string for a token (for LIST command).
+
+/*============================================================================
+ * TOKEN/KEYWORD CONVERSION
+ *============================================================================*/
+
+/**
+ * @brief Get keyword string for a token (for LIST command)
+ *
+ * @param token Token value (0x81-0xC6)
+ * @return Keyword string, or NULL if invalid token
  */
 const char *token_to_keyword(uint8_t token) {
     if (token < TOK_FIRST || token > TOK_LAST) {
@@ -58,16 +117,36 @@ const char *token_to_keyword(uint8_t token) {
     return KEYWORD_TABLE[token - TOK_FIRST];
 }
 
-/*
- * Check if a character could start a keyword.
+/**
+ * @brief Check if a character could start a keyword
+ *
+ * All BASIC keywords start with letters A-Z. This provides a quick
+ * filter before scanning the keyword table.
+ *
+ * @param c Character to check
+ * @return Non-zero if c is a letter, 0 otherwise
  */
 int is_keyword_start(char c) {
     return isalpha((unsigned char)c);
 }
 
-/*
- * Case-insensitive comparison of keyword prefix.
- * Returns the keyword length if matched, 0 otherwise.
+
+/*============================================================================
+ * KEYWORD MATCHING
+ *============================================================================*/
+
+/**
+ * @brief Case-insensitive keyword prefix match
+ *
+ * Compares input text against a keyword, case-insensitively.
+ *
+ * IMPORTANT: This does NOT check that the keyword is followed by a
+ * non-alphanumeric character. Original BASIC allowed "FORI=1" to be
+ * parsed as "FOR I=1". This matches that behavior.
+ *
+ * @param input Input text to match
+ * @param keyword Keyword to match against
+ * @return Length of keyword if matched, 0 if no match
  */
 static size_t match_keyword(const char *input, const char *keyword) {
     size_t len = 0;
@@ -86,16 +165,39 @@ static size_t match_keyword(const char *input, const char *keyword) {
     return len;
 }
 
-/*
- * Tokenize a BASIC line.
+
+/*============================================================================
+ * TOKENIZATION
+ *============================================================================*/
+
+/**
+ * @brief Tokenize a BASIC line
  *
- * Input: null-terminated ASCII string (may include line number)
- * Output: tokenized form written to output buffer
- * Returns: number of bytes written to output, or 0 on error
+ * Converts keywords to single-byte tokens for compact storage.
  *
- * Line format (both input and output):
- * - If line starts with a digit, it's a numbered line
- * - Otherwise it's a direct command
+ * Algorithm:
+ * 1. Skip leading whitespace
+ * 2. Copy line number if present
+ * 3. For each character:
+ *    - If in string literal, copy verbatim
+ *    - If after REM, copy rest of line verbatim
+ *    - If after DATA, copy until colon
+ *    - Try to match a keyword; if found, emit token
+ *    - For operators (+, -, etc.), emit operator token
+ *    - Otherwise copy character as-is
+ *
+ * @param input Null-terminated ASCII input line
+ * @param output Buffer for tokenized output
+ * @param output_size Size of output buffer
+ * @return Number of bytes written to output, or 0 on error
+ *
+ * Example:
+ * @code
+ *     char input[] = "10 PRINT \"HELLO\"";
+ *     uint8_t output[256];
+ *     size_t len = tokenize_line(input, output, sizeof(output));
+ *     // output: "10" + 0x97 + "\"HELLO\""
+ * @endcode
  */
 size_t tokenize_line(const char *input, uint8_t *output, size_t output_size) {
     size_t in_pos = 0;
@@ -223,11 +325,29 @@ size_t tokenize_line(const char *input, uint8_t *output, size_t output_size) {
     return out_pos;
 }
 
-/*
- * Detokenize a line for output (LIST command).
+
+/*============================================================================
+ * DETOKENIZATION
+ *============================================================================*/
+
+/**
+ * @brief Detokenize a line for display (LIST command)
  *
- * Converts token bytes back to keywords.
- * Returns: number of bytes written to output, or 0 on error.
+ * Converts token bytes back to keyword strings for human-readable output.
+ *
+ * @param input Tokenized line data
+ * @param input_len Length of tokenized data
+ * @param output Buffer for detokenized output
+ * @param output_size Size of output buffer
+ * @return Number of characters written, or 0 on error
+ *
+ * Example:
+ * @code
+ *     uint8_t tokenized[] = {0x97, '"', 'H', 'I', '"'};  // PRINT "HI"
+ *     char output[256];
+ *     size_t len = detokenize_line(tokenized, 5, output, sizeof(output));
+ *     // output = "PRINT\"HI\""
+ * @endcode
  */
 size_t detokenize_line(const uint8_t *input, size_t input_len,
                        char *output, size_t output_size) {
@@ -279,11 +399,21 @@ size_t detokenize_line(const uint8_t *input, size_t input_len,
     return out_pos;
 }
 
-/*
- * Find the longest keyword match at the current position.
- * This is used when we need to prefer longer matches (e.g., GOTO vs GO).
+/**
+ * @brief Find the longest keyword match at the current position
  *
- * Returns the token value, or 0 if no match.
+ * Scans the keyword table for the longest match. This handles cases
+ * like GOTO vs GO where we want to prefer the longer match.
+ *
+ * @param input Pointer to start of potential keyword
+ * @return Token value (0x81-0xC6) if match found, 0 if no match
+ *
+ * Example:
+ * @code
+ *     uint8_t tok = find_keyword_token("GOTO");   // Returns TOK_GOTO
+ *     uint8_t tok2 = find_keyword_token("GO");    // Returns 0 (no GO keyword)
+ *     uint8_t tok3 = find_keyword_token("XYZ");   // Returns 0 (no match)
+ * @endcode
  */
 uint8_t find_keyword_token(const char *input) {
     size_t best_len = 0;

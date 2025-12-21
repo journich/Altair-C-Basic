@@ -4,17 +4,46 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * mbf_trig.c - Transcendental functions (SIN, COS, TAN, ATN, LOG, EXP, SQR)
+/**
+ * @file mbf_trig.c
+ * @brief Transcendental Functions (SIN, COS, TAN, ATN, LOG, EXP, SQR)
  *
- * These implementations use standard math library functions converted
- * through the MBF<->double conversion. For byte-for-byte compatibility
- * with the original, these should be replaced with the exact polynomial
- * approximations from the 8080 assembly.
+ * This module implements the mathematical functions available in BASIC:
+ * - SQR(x) - Square root
+ * - SIN(x) - Sine (radians)
+ * - COS(x) - Cosine (radians)
+ * - TAN(x) - Tangent (radians)
+ * - ATN(x) - Arctangent (returns radians)
+ * - LOG(x) - Natural logarithm
+ * - EXP(x) - e^x (exponential)
+ *
+ * ## Implementation Strategy
+ *
+ * Currently, these use the C math library via MBF<->double conversion.
+ * This is simpler but may not produce byte-for-byte identical results
+ * to the original BASIC.
+ *
+ * For exact compatibility, these should be replaced with the original
+ * polynomial approximations from 8kbas_src.mac:
+ * - SIN/COS: Chebyshev polynomial approximation
+ * - ATN: Polynomial approximation
+ * - LOG: Series expansion
+ * - EXP: Series expansion
+ *
+ * ## Error Handling
+ *
+ * - SQR of negative: Returns 0, caller should generate FC error
+ * - LOG of zero/negative: Returns 0, caller should generate FC error
+ * - EXP overflow: Returns 0, caller should generate OV error
  */
 
 #include "basic/mbf.h"
 #include <math.h>
+
+
+/*============================================================================
+ * SQUARE ROOT
+ *============================================================================*/
 
 /* Square root using Newton-Raphson iteration in MBF format */
 mbf_t mbf_sqr(mbf_t a) {

@@ -4,10 +4,84 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * interpreter.c - Main BASIC interpreter
+/**
+ * @file interpreter.c
+ * @brief Main BASIC Interpreter - Execution Engine
  *
- * Implements the main command loop, statement execution, and program control.
+ * This is the heart of the BASIC interpreter. It implements:
+ * - State initialization and management
+ * - Direct command execution (typing commands at the OK prompt)
+ * - Program execution (RUN command)
+ * - Statement dispatch and execution
+ * - Error handling and reporting
+ * - Interrupt handling (Ctrl-C)
+ *
+ * ## Execution Flow
+ *
+ * ```
+ *   User Input
+ *       |
+ *       v
+ *   basic_execute_line()
+ *       |
+ *       +-- Has line number? --> program_insert_line() --> Store in program
+ *       |
+ *       +-- No line number --> execute_statement() --> Direct execution
+ *                                   |
+ *                                   v
+ *                           Statement dispatch (switch)
+ *                                   |
+ *         +--------+--------+-------+-------+--------+
+ *         |        |        |       |       |        |
+ *         v        v        v       v       v        v
+ *       PRINT    LET     GOTO    FOR    INPUT     etc...
+ *         |        |        |       |       |
+ *         v        v        v       v       v
+ *     io.c    variables.c  flow.c  flow.c  io.c
+ * ```
+ *
+ * ## Program Execution Loop
+ *
+ * When RUN is executed:
+ * ```
+ *   basic_run_program()
+ *       |
+ *       v
+ *   while (running) {
+ *       1. Check for Ctrl-C interrupt
+ *       2. Find current line from text_ptr
+ *       3. Extract statement (up to ':' or end of line)
+ *       4. execute_statement()
+ *       5. Advance to next statement or line
+ *   }
+ * ```
+ *
+ * ## Statement Dispatch
+ *
+ * The execute_statement() function is a large switch on the first token:
+ * - TOK_REM: Skip (comment)
+ * - TOK_PRINT: Output expressions
+ * - TOK_LET: Variable assignment (implicit LET also handled)
+ * - TOK_GOTO/GOSUB: Branch to line number
+ * - TOK_FOR/NEXT: Loop control
+ * - TOK_IF: Conditional execution
+ * - TOK_INPUT/READ: Get data
+ * - etc.
+ *
+ * ## Key State Variables
+ *
+ * - `text_ptr`: Current position in program being executed
+ * - `current_line`: Line number being executed (0xFFFF = direct mode)
+ * - `running`: True while program is executing
+ * - `can_continue`: True if CONT can resume execution
+ *
+ * ## Error Handling
+ *
+ * Errors are returned as basic_error_t values. The main loop checks
+ * for errors after each statement and:
+ * 1. Prints the error message with line number
+ * 2. Stops execution
+ * 3. Returns to the OK prompt
  */
 
 #include "basic/basic.h"
@@ -18,31 +92,97 @@
 #include <ctype.h>
 #include <signal.h>
 
-/* Error state */
+
+/*============================================================================
+ * GLOBAL ERROR STATE
+ *
+ * The error system uses a global variable to track the most recent error.
+ * This is checked after operations that can fail (math, I/O, etc.).
+ *============================================================================*/
+
+/**
+ * @brief Global error context
+ *
+ * Holds information about the last error that occurred:
+ * - code: The error code (ERR_SN, ERR_OM, etc.)
+ * - line_number: Where it happened (0xFFFF = direct mode)
+ * - position: Character position (reserved for future use)
+ */
 error_context_t g_last_error = {0};
 
-/* Ctrl-C interrupt handling */
+
+/*============================================================================
+ * CTRL-C INTERRUPT HANDLING
+ *
+ * Users can press Ctrl-C to interrupt a running program. This uses the
+ * POSIX signal mechanism to set a flag that's checked in the main loop.
+ *
+ * The interrupt is cooperative - the program checks g_interrupt_flag
+ * between statements and exits cleanly if set.
+ *============================================================================*/
+
+/** Flag set by signal handler when Ctrl-C is pressed */
 static volatile sig_atomic_t g_interrupt_flag = 0;
+
+/** Pointer to interpreter state for interrupt handling */
 static basic_state_t *g_interrupt_state = NULL;
 
+/**
+ * @brief Signal handler for SIGINT (Ctrl-C)
+ *
+ * Simply sets the interrupt flag. The main execution loop checks
+ * this flag and handles the break gracefully.
+ *
+ * @param sig Signal number (unused, always SIGINT)
+ */
 static void interrupt_handler(int sig) {
-    (void)sig;
+    (void)sig;  /* Unused parameter */
     g_interrupt_flag = 1;
 }
 
+/**
+ * @brief Set up Ctrl-C interrupt handling for program execution
+ *
+ * Called before basic_run_program() to enable clean interruption.
+ * Saves the interpreter state so the handler knows what to interrupt.
+ *
+ * @param state The interpreter state to associate with interrupts
+ */
 void basic_setup_interrupt(basic_state_t *state) {
     g_interrupt_state = state;
     g_interrupt_flag = 0;
     signal(SIGINT, interrupt_handler);
 }
 
+/**
+ * @brief Disable interrupt handling and restore default behavior
+ *
+ * Called after program execution completes to restore normal
+ * Ctrl-C behavior (terminate process).
+ */
 void basic_clear_interrupt(void) {
     g_interrupt_flag = 0;
     signal(SIGINT, SIG_DFL);
 }
 
-/*
- * Error code strings - exact match to original BASIC.
+
+/*============================================================================
+ * ERROR CODE TABLE
+ *
+ * This table maps error codes to their 2-letter abbreviations.
+ * These abbreviations match the original Altair BASIC exactly.
+ *============================================================================*/
+
+/**
+ * @brief Error code strings
+ *
+ * Two-letter error codes as displayed to the user.
+ * Index matches the basic_error_t enum values.
+ *
+ * When an error occurs, BASIC prints:
+ *   ?XX ERROR IN line
+ *
+ * Where XX is one of these codes.
  */
 const char ERROR_CODES[][3] = {
     "??",  /* ERR_NONE */
@@ -67,16 +207,32 @@ const char ERROR_CODES[][3] = {
     "MO",  /* ERR_MO - Missing Operand */
 };
 
-/*
- * Get error code string.
+/**
+ * @brief Get the 2-letter error code string for an error
+ *
+ * Looks up the error code in the ERROR_CODES table.
+ *
+ * @param err Error code to look up
+ * @return Pointer to 2-character string (e.g., "SN", "OM")
+ *         Returns "??" for unknown error codes.
  */
 const char *error_code_string(basic_error_t err) {
     if (err >= ERR_COUNT) return "??";
     return ERROR_CODES[err];
 }
 
-/*
- * Raise an error.
+
+/*============================================================================
+ * ERROR MANAGEMENT FUNCTIONS
+ *============================================================================*/
+
+/**
+ * @brief Raise an error (direct mode)
+ *
+ * Sets the global error state. Line number is set to 0xFFFF
+ * to indicate direct mode (no program line).
+ *
+ * @param code The error code to raise
  */
 void basic_error(basic_error_t code) {
     g_last_error.code = code;
@@ -84,8 +240,14 @@ void basic_error(basic_error_t code) {
     g_last_error.position = 0;
 }
 
-/*
- * Raise an error at a specific line.
+/**
+ * @brief Raise an error at a specific line
+ *
+ * Sets the global error state with a specific line number.
+ * Used when an error occurs during program execution.
+ *
+ * @param code The error code to raise
+ * @param line The line number where the error occurred
  */
 void basic_error_at_line(basic_error_t code, uint16_t line) {
     g_last_error.code = code;
@@ -93,15 +255,68 @@ void basic_error_at_line(basic_error_t code, uint16_t line) {
     g_last_error.position = 0;
 }
 
-/*
- * Clear the last error.
+/**
+ * @brief Clear the last error
+ *
+ * Resets the error state to ERR_NONE. Called before operations
+ * that might fail, so errors can be detected.
  */
 void basic_clear_error(void) {
     g_last_error.code = ERR_NONE;
 }
 
-/*
- * Initialize interpreter state.
+
+/*============================================================================
+ * INTERPRETER INITIALIZATION
+ *
+ * These functions manage the interpreter's lifecycle:
+ * - basic_init: Create and configure a new interpreter
+ * - basic_free: Destroy interpreter and free memory
+ * - basic_reset: Clear program/variables but keep interpreter
+ *============================================================================*/
+
+/**
+ * @brief Initialize a new BASIC interpreter
+ *
+ * Allocates and configures all interpreter resources:
+ * - Memory buffer (default 64KB, configurable)
+ * - I/O streams (default stdin/stdout)
+ * - Terminal settings
+ * - RND state initialization
+ *
+ * Memory Layout After Init:
+ * ```
+ *   +------------------+
+ *   | (empty program)  | <- program_start = 0
+ *   +------------------+
+ *   | (empty vars)     | <- program_end, var_start
+ *   +------------------+
+ *   | (empty arrays)   | <- array_start
+ *   +------------------+
+ *   |                  |
+ *   |  (free space)    |
+ *   |                  |
+ *   +------------------+
+ *   | (empty strings)  | <- string_start
+ *   +------------------+
+ *                        <- string_end = top of memory
+ * ```
+ *
+ * @param config Configuration options (NULL for defaults)
+ * @return New interpreter state, or NULL on allocation failure
+ *
+ * Example:
+ * @code
+ *     basic_config_t config = {
+ *         .memory_size = 32768,  // 32KB
+ *         .terminal_width = 80
+ *     };
+ *     basic_state_t *state = basic_init(&config);
+ *     if (!state) {
+ *         fprintf(stderr, "Failed to initialize BASIC\n");
+ *         exit(1);
+ *     }
+ * @endcode
  */
 basic_state_t *basic_init(const basic_config_t *config) {
     basic_state_t *state = calloc(1, sizeof(basic_state_t));
@@ -144,8 +359,13 @@ basic_state_t *basic_init(const basic_config_t *config) {
     return state;
 }
 
-/*
- * Free interpreter state.
+/**
+ * @brief Free interpreter state and all resources
+ *
+ * Releases all memory allocated by basic_init().
+ * After calling this, the state pointer is invalid.
+ *
+ * @param state Interpreter state to free (NULL is safe)
  */
 void basic_free(basic_state_t *state) {
     if (state) {
@@ -154,8 +374,26 @@ void basic_free(basic_state_t *state) {
     }
 }
 
-/*
- * Reset interpreter.
+/**
+ * @brief Reset interpreter to initial state
+ *
+ * Clears the program, variables, arrays, and strings while
+ * keeping the interpreter instance. Used by NEW command.
+ *
+ * After reset:
+ * - Program memory is empty
+ * - All variables are cleared
+ * - FOR/GOSUB stacks are empty
+ * - DATA pointer is reset to beginning
+ * - User functions are cleared
+ * - RND is re-initialized
+ *
+ * Does NOT change:
+ * - Memory size
+ * - I/O streams
+ * - Terminal settings
+ *
+ * @param state Interpreter state to reset
  */
 void basic_reset(basic_state_t *state) {
     if (!state) return;
@@ -186,8 +424,28 @@ void basic_reset(basic_state_t *state) {
     state->data_ptr = 0;
 }
 
-/*
- * Get free memory.
+
+/*============================================================================
+ * MEMORY MANAGEMENT
+ *============================================================================*/
+
+/**
+ * @brief Get free memory available for program/variables
+ *
+ * Returns the bytes between the end of arrays (growing up) and
+ * the start of strings (growing down). This is the FRE() function.
+ *
+ * Memory Layout:
+ * ```
+ *   [Program][Variables][Arrays]  <-FREE->  [Strings]
+ *                              ^            ^
+ *                         array_start   string_start
+ *
+ *   free_memory = string_start - array_start
+ * ```
+ *
+ * @param state Interpreter state
+ * @return Bytes of free memory, or 0 if state is NULL or out of memory
  */
 uint16_t basic_free_memory(basic_state_t *state) {
     if (!state) return 0;
@@ -196,8 +454,27 @@ uint16_t basic_free_memory(basic_state_t *state) {
     return state->string_start - state->array_start;
 }
 
-/*
- * Print startup banner.
+
+/*============================================================================
+ * OUTPUT FUNCTIONS
+ *
+ * These functions handle output to the terminal, including the
+ * startup banner, OK prompt, and error messages.
+ *============================================================================*/
+
+/**
+ * @brief Print the BASIC startup banner
+ *
+ * Displays the iconic Altair BASIC banner:
+ * ```
+ * ALTAIR BASIC REV. 4.0
+ * [8K VERSION]
+ * COPYRIGHT 1976 BY MITS INC.
+ *
+ * XXXXX BYTES FREE
+ * ```
+ *
+ * @param state Interpreter state
  */
 void basic_print_banner(basic_state_t *state) {
     if (!state || !state->output) return;
@@ -207,16 +484,31 @@ void basic_print_banner(basic_state_t *state) {
     fprintf(state->output, "%u BYTES FREE\n\n", basic_free_memory(state));
 }
 
-/*
- * Print OK prompt.
+/**
+ * @brief Print the OK prompt
+ *
+ * Displayed after successful command execution in direct mode.
+ *
+ * @param state Interpreter state
  */
 void basic_print_ok(basic_state_t *state) {
     if (!state || !state->output) return;
     fprintf(state->output, "OK\n");
 }
 
-/*
- * Print error message.
+/**
+ * @brief Print an error message
+ *
+ * Formats and displays an error in the standard BASIC format:
+ * ```
+ * ?XX ERROR IN line
+ * ```
+ *
+ * If line is 0xFFFF (direct mode), the "IN line" part is omitted.
+ *
+ * @param state Interpreter state
+ * @param err Error code to display
+ * @param line Line number where error occurred (0xFFFF for direct mode)
  */
 void basic_print_error(basic_state_t *state, basic_error_t err, uint16_t line) {
     if (!state || !state->output) return;
@@ -228,10 +520,31 @@ void basic_print_error(basic_state_t *state, basic_error_t err, uint16_t line) {
     fprintf(state->output, "\n");
 }
 
-/*
- * Parse a line number from the start of a string.
- * Returns the line number, or 0 if none found.
- * Updates *pos to point past the line number.
+
+/*============================================================================
+ * LINE PARSING
+ *
+ * When the user types a line, we first check if it starts with a
+ * line number. If so, it's stored in the program. Otherwise, it's
+ * executed immediately.
+ *============================================================================*/
+
+/**
+ * @brief Parse a line number from the start of a string
+ *
+ * Skips leading whitespace, then parses decimal digits.
+ * Line numbers must be 0-65529.
+ *
+ * @param line Input line to parse
+ * @param[in,out] pos Current position; updated to point past the number
+ * @return Line number parsed (1-65529), or 0 if no valid number found
+ *
+ * Example:
+ * @code
+ *     size_t pos = 0;
+ *     uint16_t num = parse_line_number("  100 PRINT", &pos);
+ *     // num = 100, pos = 5 (pointing at space before PRINT)
+ * @endcode
  */
 static uint16_t parse_line_number(const char *line, size_t *pos) {
     size_t i = *pos;
@@ -259,17 +572,69 @@ static uint16_t parse_line_number(const char *line, size_t *pos) {
     return (uint16_t)num;
 }
 
-/*
- * Execute a direct statement (one without a line number).
- * Returns error code.
+
+/*============================================================================
+ * STATEMENT EXECUTION
+ *
+ * The execute_statement() function is the main dispatcher for all
+ * BASIC statements. It looks at the first token and branches to
+ * the appropriate handler.
+ *============================================================================*/
+
+/**
+ * @brief Execute a single tokenized statement
+ *
+ * This is the core statement dispatcher. It handles all BASIC statements
+ * by examining the first token and calling the appropriate handler.
+ *
+ * @param state Interpreter state
+ * @param tokenized Tokenized statement text
+ * @param len Length of tokenized text
+ * @return ERR_NONE on success, error code on failure
+ *
+ * Forward declaration - implementation is after basic_execute_line.
  */
 static basic_error_t execute_statement(basic_state_t *state,
                                        const uint8_t *tokenized, size_t len);
 
-/*
- * Execute a single line of BASIC (direct mode).
- * If the line has a line number, it's stored in the program.
+
+/*============================================================================
+ * DIRECT MODE EXECUTION
+ *
+ * When the user types a line at the OK prompt, basic_execute_line()
+ * processes it. If it has a line number, it's stored in the program.
  * Otherwise, it's executed immediately.
+ *============================================================================*/
+
+/**
+ * @brief Execute a single line of BASIC input
+ *
+ * This is the main entry point for user input. Handles both:
+ * - Program lines (with line number): stored for later execution
+ * - Direct commands (no line number): executed immediately
+ *
+ * Flow:
+ * 1. Skip leading whitespace
+ * 2. Check for line number at start
+ * 3. Tokenize the rest of the line
+ * 4. If line number: store in program (or delete if line is empty)
+ * 5. If no line number: execute immediately
+ *
+ * @param state Interpreter state
+ * @param line Raw input line from user
+ * @return true on success, false on error
+ *
+ * Example (program line):
+ * @code
+ *     basic_execute_line(state, "100 PRINT \"HELLO\"");
+ *     // Stores tokenized line at line number 100
+ * @endcode
+ *
+ * Example (direct command):
+ * @code
+ *     basic_execute_line(state, "PRINT 2+2");
+ *     // Immediately prints: 4
+ * @endcode
  */
 bool basic_execute_line(basic_state_t *state, const char *line) {
     if (!state || !line) return false;
@@ -316,8 +681,38 @@ bool basic_execute_line(basic_state_t *state, const char *line) {
     return true;
 }
 
-/*
- * Execute a statement from tokenized text.
+/**
+ * @brief Execute a tokenized statement
+ *
+ * This is the core statement dispatcher. It examines the first token
+ * of the statement and branches to the appropriate handler.
+ *
+ * Statement Categories:
+ *
+ * **Flow Control (flow.c):**
+ * - GOTO, GOSUB, RETURN, FOR, NEXT, IF, ON, END, STOP, CONT
+ *
+ * **I/O Operations (io.c):**
+ * - PRINT, INPUT, READ, DATA, RESTORE
+ *
+ * **Variables and Memory:**
+ * - LET (implicit or explicit), DIM, POKE, DEF
+ *
+ * **Program Management:**
+ * - LIST, RUN, NEW, CLEAR, CLOAD, CSAVE
+ *
+ * **Miscellaneous:**
+ * - REM (comment, skipped), NULL
+ *
+ * @param state Interpreter state
+ * @param tokenized Tokenized statement bytes
+ * @param len Length of tokenized data
+ * @return ERR_NONE on success, error code on failure
+ *
+ * Note: This function may modify state->text_ptr for flow control
+ * statements (GOTO, GOSUB, NEXT, etc.). The caller checks if text_ptr
+ * changed to determine whether to advance normally or let the
+ * statement control flow.
  */
 static basic_error_t execute_statement(basic_state_t *state,
                                        const uint8_t *tokenized, size_t len) {
@@ -328,13 +723,20 @@ static basic_error_t execute_statement(basic_state_t *state,
     /* Skip leading whitespace */
     while (pos < len && tokenized[pos] == ' ') pos++;
 
+    /* Empty statement is not an error */
     if (pos >= len || tokenized[pos] == '\0') {
         return ERR_NONE;
     }
 
+    /* Get the command token (first non-space character) */
     uint8_t cmd = tokenized[pos];
 
-    /* Handle statements */
+    /*
+     * Main statement dispatch switch.
+     *
+     * Each case handles a specific statement type. Complex statements
+     * delegate to functions in other modules (flow.c, io.c, etc.).
+     */
     switch (cmd) {
         case TOK_REM:
             /* Comment - skip rest of line */
@@ -1540,8 +1942,52 @@ static basic_error_t execute_statement(basic_state_t *state,
     }
 }
 
-/*
- * Run the current program.
+
+/*============================================================================
+ * PROGRAM EXECUTION
+ *
+ * basic_run_program() is the main execution loop. It processes
+ * statements one at a time until the program ends or an error occurs.
+ *============================================================================*/
+
+/**
+ * @brief Execute the current BASIC program
+ *
+ * This is the main program execution loop. It runs from the current
+ * text_ptr position until:
+ * - The program ends (END statement or runs off the end)
+ * - An error occurs
+ * - The user presses Ctrl-C
+ * - A STOP statement is executed
+ *
+ * Execution Loop:
+ * ```
+ * while (running) {
+ *     1. Check for Ctrl-C interrupt
+ *     2. Find the line containing text_ptr
+ *     3. Extract current statement (up to ':' or end of line)
+ *     4. execute_statement()
+ *     5. If text_ptr unchanged, advance to next statement
+ *     6. If text_ptr changed (GOTO, etc.), loop back without advancing
+ * }
+ * ```
+ *
+ * Statement Separation:
+ * - Multiple statements per line are separated by ':'
+ * - After executing a statement, we check for ':'
+ * - If found, continue on same line; otherwise, move to next line
+ *
+ * Flow Control:
+ * - GOTO/GOSUB/NEXT may modify text_ptr directly
+ * - We detect this by comparing text_ptr before and after execution
+ * - If changed, we don't advance - the statement handled it
+ *
+ * Interrupt Handling:
+ * - Ctrl-C sets g_interrupt_flag
+ * - We check this at the start of each iteration
+ * - If set, print "BREAK IN line" and stop with can_continue=true
+ *
+ * @param state Interpreter state with text_ptr set to starting position
  */
 void basic_run_program(basic_state_t *state) {
     if (!state) return;
@@ -1673,8 +2119,42 @@ void basic_run_program(basic_state_t *state) {
     basic_clear_interrupt();
 }
 
-/*
- * Run interactive interpreter.
+
+/*============================================================================
+ * INTERACTIVE MODE
+ *
+ * basic_run_interactive() provides the classic BASIC experience:
+ * display banner, print OK prompt, and process commands until EOF.
+ *============================================================================*/
+
+/**
+ * @brief Run interactive BASIC interpreter
+ *
+ * This is the main entry point for interactive use. It:
+ * 1. Prints the startup banner
+ * 2. Prints "OK"
+ * 3. Reads a line of input
+ * 4. Executes it (store or run depending on line number)
+ * 5. Prints "OK" again (if not running a program)
+ * 6. Repeats until EOF
+ *
+ * @param state Interpreter state
+ *
+ * Example session:
+ * ```
+ * ALTAIR BASIC REV. 4.0
+ * [8K VERSION]
+ * COPYRIGHT 1976 BY MITS INC.
+ *
+ * 65279 BYTES FREE
+ *
+ * OK
+ * 10 PRINT "HELLO"
+ * OK
+ * RUN
+ * HELLO
+ * OK
+ * ```
  */
 void basic_run_interactive(basic_state_t *state) {
     if (!state) return;
@@ -1706,8 +2186,31 @@ void basic_run_interactive(basic_state_t *state) {
     }
 }
 
-/*
- * Load program from file.
+
+/*============================================================================
+ * FILE OPERATIONS
+ *
+ * These functions load and save BASIC programs to/from text files.
+ * They are the implementation behind CLOAD and CSAVE commands.
+ *============================================================================*/
+
+/**
+ * @brief Load a BASIC program from a text file
+ *
+ * Reads a .bas file and loads it into the interpreter.
+ * Each line in the file should be a numbered BASIC line.
+ *
+ * The file format is plain text:
+ * ```
+ * 10 PRINT "HELLO"
+ * 20 GOTO 10
+ * ```
+ *
+ * @param state Interpreter state
+ * @param filename Path to the .bas file
+ * @return true on success, false on error (file not found, syntax error)
+ *
+ * Note: Clears any existing program before loading.
  */
 bool basic_load_file(basic_state_t *state, const char *filename) {
     if (!state || !filename) return false;
@@ -1737,8 +2240,17 @@ bool basic_load_file(basic_state_t *state, const char *filename) {
     return true;
 }
 
-/*
- * Save program to file.
+/**
+ * @brief Save the current BASIC program to a text file
+ *
+ * Writes the program to a .bas file in plain text format.
+ * The output is suitable for loading with basic_load_file().
+ *
+ * Lines are detokenized (keywords expanded) before writing.
+ *
+ * @param state Interpreter state
+ * @param filename Path to save to
+ * @return true on success, false on error (can't create file)
  */
 bool basic_save_file(basic_state_t *state, const char *filename) {
     if (!state || !filename) return false;

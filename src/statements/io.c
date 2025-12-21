@@ -4,10 +4,62 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * io.c - I/O Statements
+/**
+ * @file io.c
+ * @brief Input/Output Statements
  *
- * Implements PRINT, INPUT, DATA/READ/RESTORE, and related statements.
+ * Implements terminal I/O and DATA/READ statements:
+ * - PRINT expr; expr, expr - Output values to terminal
+ * - INPUT "prompt"; var - Read values from user
+ * - DATA value, value, ... - Define inline data
+ * - READ var, var, ... - Read from DATA statements
+ * - RESTORE [line] - Reset DATA pointer
+ * - TAB(n) - Move to column n in PRINT
+ * - SPC(n) - Output n spaces in PRINT
+ * - POS(0) - Return current column position
+ * - WIDTH n - Set terminal line width
+ * - NULL n - Set null character padding after CR
+ *
+ * ## PRINT Formatting
+ *
+ * ```
+ *   PRINT A      → Space, digits, space, newline
+ *   PRINT A;     → Space, digits, space (no newline)
+ *   PRINT A,     → Space, digits, advance to next zone (14 chars)
+ *   PRINT "HI"   → Output string as-is, no newline
+ *   PRINT        → Just output newline
+ * ```
+ *
+ * Numeric output always has:
+ * - Leading space for positive numbers (where minus sign would go)
+ * - Trailing space after the number
+ *
+ * ## Column Tracking
+ *
+ * The terminal_x state variable tracks the current column (0-based).
+ * When it reaches terminal_width, automatic line wrap occurs.
+ * TAB(n) and POS(0) work with 1-based columns for BASIC compatibility.
+ *
+ * ## DATA/READ System
+ *
+ * DATA statements can appear anywhere in the program. READ scans
+ * through them sequentially:
+ *
+ * ```
+ *   100 DATA 1, 2, 3
+ *   200 READ A, B, C
+ *   300 DATA 4, 5, 6
+ *   400 READ D, E, F
+ * ```
+ *
+ * The DATA pointer (data_line, data_ptr) tracks the current position.
+ * RESTORE resets it to the beginning or to a specific line.
+ *
+ * ## Null Padding
+ *
+ * The NULL statement sets how many null characters (0x00) are sent
+ * after each carriage return. This was needed for slow mechanical
+ * terminals like teletypes that required time to return the carriage.
  */
 
 #include "basic/basic.h"

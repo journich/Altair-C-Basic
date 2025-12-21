@@ -4,17 +4,56 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * variables.c - Variable Storage
+/**
+ * @file variables.c
+ * @brief Simple Variable Storage
  *
  * Implements variable lookup and storage matching the original 8K BASIC.
+ * Simple variables are single values (not arrays).
  *
- * Variable format (6 bytes each):
- *   Bytes 0-1: Variable name (1-2 chars, $ suffix for strings stored in byte 1 bit 7)
- *   Bytes 2-5: Value (MBF for numeric, string descriptor for strings)
+ * ## Variable Format
  *
- * Variables are stored sequentially after the program area.
- * Simple variables come first, then arrays.
+ * Each variable occupies 6 bytes:
+ * ```
+ *   +-------+-------+-------+-------+-------+-------+
+ *   |Name[0]|Name[1]|Value[0]|Value[1]|Value[2]|Value[3]|
+ *   +-------+-------+-------+-------+-------+-------+
+ *   Byte 0   Byte 1   Byte 2   Byte 3   Byte 4   Byte 5
+ *
+ *   Name[0]: First character of variable name (uppercase)
+ *   Name[1]: Second character (0 if single letter) + string flag in bit 7
+ *   Value:   4 bytes MBF for numeric, or 4 bytes string descriptor
+ * ```
+ *
+ * ## Variable Names
+ *
+ * - Names are 1-2 characters (letters and digits)
+ * - First character must be a letter
+ * - Second character can be a letter or digit
+ * - String variables end with $ (A$, X1$)
+ * - The $ is stored as bit 7 of the second name byte
+ *
+ * ## Memory Layout
+ *
+ * Variables are stored contiguously after the program:
+ * ```
+ *   [Program] [Var1][Var2][Var3]...[VarN] [Arrays] ... [Strings]
+ *             ^                          ^
+ *             var_start                  array_start
+ * ```
+ *
+ * When a new variable is created and arrays already exist, the array
+ * area is shifted up to make room.
+ *
+ * ## String Variable Values
+ *
+ * String variables don't store the string data directly. They store
+ * a string descriptor (4 bytes):
+ * ```
+ *   Byte 0: Length (0-255)
+ *   Byte 1: Reserved
+ *   Bytes 2-3: Pointer to string data in string heap
+ * ```
  */
 
 #include "basic/basic.h"

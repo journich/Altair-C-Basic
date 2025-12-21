@@ -4,10 +4,59 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * flow.c - Control Flow Statements
+/**
+ * @file flow.c
+ * @brief Control Flow Statements
  *
- * Implements GOTO, GOSUB, FOR/NEXT, IF/THEN, and related statements.
+ * Implements the control flow statements that change program execution order:
+ * - GOTO line - Unconditional jump
+ * - GOSUB line / RETURN - Subroutine call and return
+ * - FOR var=start TO limit [STEP step] / NEXT [var] - Counting loop
+ * - IF expr THEN line/statement - Conditional execution
+ * - ON expr GOTO line1,line2,... - Computed jump
+ * - ON expr GOSUB line1,line2,... - Computed subroutine call
+ * - END - Terminate program execution
+ * - STOP - Break to immediate mode (allows CONT)
+ * - CONT - Continue after STOP or Ctrl-C
+ * - POP - Discard GOSUB return address
+ *
+ * ## Control Stacks
+ *
+ * Two stacks manage nested control structures:
+ *
+ * ### GOSUB Stack (16 entries)
+ * ```
+ *   +-------------+------------+
+ *   | Line Number | Text Ptr   |  <- gosub_stack[gosub_sp-1]
+ *   +-------------+------------+
+ *   | Line Number | Text Ptr   |
+ *   +-------------+------------+
+ *   :             :            :
+ * ```
+ * Stores return addresses for GOSUB/RETURN.
+ *
+ * ### FOR Stack (16 entries)
+ * ```
+ *   +------+------+-------+------+----------+
+ *   | Line | Ptr  | Limit | Step | Var Ptr  |  <- for_stack[for_sp-1]
+ *   +------+------+-------+------+----------+
+ *   :      :      :       :      :          :
+ * ```
+ * Stores loop parameters for FOR/NEXT.
+ *
+ * ## FOR/NEXT Semantics
+ *
+ * - Loop variable is initialized and checked AFTER first iteration
+ * - Positive step: loop while var <= limit
+ * - Negative step: loop while var >= limit
+ * - NEXT without variable uses innermost FOR
+ * - NEXT with variable pops any inner loops for different variables
+ * - Same variable in nested FOR reuses the stack entry (no error)
+ *
+ * ## ON...GOTO/GOSUB
+ *
+ * Selector value 1-N picks the Nth line number.
+ * If selector is 0 or > N, execution continues with next statement.
  */
 
 #include "basic/basic.h"

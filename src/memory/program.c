@@ -4,12 +4,75 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * program.c - Program Storage
+/**
+ * @file program.c
+ * @brief BASIC Program Storage
  *
- * Manages BASIC program storage in memory.
- * Lines are stored sequentially: link[2], line_num[2], tokenized_text..., 0
- * Link points to the next line (0 = end of program).
+ * Manages BASIC program storage in memory as a linked list of tokenized lines.
+ * This module handles line insertion, deletion, lookup, and listing.
+ *
+ * ## Program Line Format
+ *
+ * Each program line is stored as a linked-list node:
+ * ```
+ *   +--------+--------+---------+---------+------...------+------+
+ *   |Link_lo |Link_hi |LineNo_lo|LineNo_hi| Tokenized Text| 0x00 |
+ *   +--------+--------+---------+---------+------...------+------+
+ *   Byte 0    Byte 1   Byte 2    Byte 3    Bytes 4-N       N+1
+ *
+ *   Link:    Offset to next line (0 = end of program), little-endian
+ *   LineNo:  BASIC line number (1-65535), little-endian
+ *   Text:    Tokenized program text (keywords are single bytes 0x81-0xC6)
+ *   0x00:    Null terminator marking end of line
+ * ```
+ *
+ * ## Memory Layout
+ *
+ * ```
+ *   program_start                            program_end
+ *       |                                         |
+ *       v                                         v
+ *   +-------+-------+-------+-------+-------------+
+ *   |Line 10|Line 20|Line 30|Line 40| (empty)     |
+ *   +-------+-------+-------+-------+-------------+
+ *       |       ^       ^       ^
+ *       +-------+       |       |
+ *               +-------+       |
+ *                       +-------+
+ *                               (link=0)
+ *
+ *   Lines are stored in ascending order by line number.
+ *   Each line's link field points to the next line.
+ *   The last line has link=0 to mark end of program.
+ * ```
+ *
+ * ## Operations
+ *
+ * - **Insert**: Shifts all following data up, updates all affected links
+ * - **Delete**: Shifts all following data down, updates all affected links
+ * - **Replace**: Delete old + Insert new (to handle size changes)
+ * - **Lookup**: Linear search through linked list
+ * - **LIST**: Traverse list, detokenizing keywords for display
+ *
+ * ## Tokenization
+ *
+ * Program text is stored in tokenized form to save memory:
+ * - Keywords (PRINT, GOTO, etc.) become single bytes 0x81-0xC6
+ * - Strings are stored as-is with their quotes
+ * - Numbers are stored as ASCII digits (not converted to MBF)
+ * - Variable names are stored as uppercase ASCII
+ *
+ * Example: "10 PRINT X" becomes:
+ * ```
+ *   [link][0x0A,0x00][0x92][ ][X][0x00]
+ *          line 10    PRINT     X  null
+ * ```
+ *
+ * ## Link Maintenance
+ *
+ * When inserting or deleting lines, all link fields pointing to or past
+ * the affected area must be updated. This is O(n) but necessary to
+ * maintain the linked list structure.
  */
 
 #include "basic/basic.h"

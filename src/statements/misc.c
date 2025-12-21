@@ -4,10 +4,58 @@
  * Based on Altair 8K BASIC 4.0, Copyright (c) 1976 Microsoft
  */
 
-/*
- * misc.c - Miscellaneous Statements
+/**
+ * @file misc.c
+ * @brief Miscellaneous Statements
  *
- * Implements LET, DIM, DEF, POKE, CLEAR, NEW, RUN, and related statements.
+ * Implements variable assignment, memory management, and program control:
+ *
+ * ## Variable Assignment
+ * - LET var = expr - Assign value to variable (LET is optional)
+ * - SWAP var1, var2 - Exchange two variable values
+ *
+ * ## Array Management
+ * - DIM arr(size) - Dimension an array
+ * - DIM arr(rows, cols) - Dimension a 2D array
+ *
+ * ## User-Defined Functions
+ * - DEF FNA(x) = expr - Define function FNA
+ * - FNA(x) - Call user function
+ *
+ * ## Memory Access
+ * - PEEK(addr) - Read byte from memory
+ * - POKE addr, value - Write byte to memory
+ * - FRE(0) - Return free memory in bytes
+ *
+ * ## Program Control
+ * - RUN [line] - Start program execution
+ * - NEW - Clear program and all data
+ * - CLEAR [size] - Clear variables, optionally set string space
+ * - REM comment - Remark (comment) line
+ *
+ * ## Hardware I/O (Stubs)
+ * - INP(port) - Read from I/O port (returns 0, warns once)
+ * - OUT port, value - Write to I/O port (no-op, warns once)
+ * - WAIT port, mask [,xor] - Wait for I/O condition (no-op, warns once)
+ * - USR(addr) - Call machine code (returns 0, warns once)
+ *
+ * ## Random Numbers
+ * - RANDOMIZE [seed] - Reseed random number generator
+ *
+ * ## User Functions (DEF FN)
+ *
+ * User functions are stored in a 26-element array (FNA-FNZ).
+ * Each entry stores the line number and text pointer where the
+ * function's expression begins. When FNx(arg) is called, the
+ * interpreter evaluates the expression with x bound to arg.
+ *
+ * ## Hardware I/O Stubs
+ *
+ * The original BASIC ran on Altair 8800 hardware with direct port I/O.
+ * Since this implementation runs on modern systems, INP, OUT, WAIT,
+ * and USR are stubs that print a warning on first use and return
+ * harmless default values. Most BASIC programs (including David Ahl's
+ * games) don't use these hardware-specific features.
  */
 
 #include "basic/basic.h"
