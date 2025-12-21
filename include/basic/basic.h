@@ -282,6 +282,9 @@ mbf_t eval_expression(basic_state_t *state, const uint8_t *text, size_t len,
 const char *eval_string_expression(basic_state_t *state, const uint8_t *text,
                                    size_t len, size_t *consumed,
                                    basic_error_t *error);
+string_desc_t eval_string_desc(basic_state_t *state, const uint8_t *text,
+                               size_t len, size_t *consumed,
+                               basic_error_t *error);
 
 /*
  * Variable functions.

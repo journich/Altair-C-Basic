@@ -353,49 +353,96 @@ static basic_error_t execute_statement(basic_state_t *state,
                     pos++;
                     need_newline = false;
                 } else if (ch == TOK_TAB) {
-                    /* TAB function */
+                    /* TAB function - token includes the '(' */
                     pos++;
-                    if (pos < len && tokenized[pos] == '(') {
-                        pos++;
-                        basic_error_t err;
-                        size_t consumed;
-                        mbf_t val = eval_expression(state, tokenized + pos, len - pos,
-                                                    &consumed, &err);
-                        if (err != ERR_NONE) return err;
-                        pos += consumed;
-                        if (pos < len && tokenized[pos] == ')') pos++;
+                    basic_error_t err;
+                    size_t consumed;
+                    mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                                &consumed, &err);
+                    if (err != ERR_NONE) return err;
+                    pos += consumed;
+                    if (pos < len && tokenized[pos] == ')') pos++;
 
-                        bool overflow;
-                        int col = mbf_to_int16(val, &overflow);
-                        if (!overflow && col >= 1) {
-                            io_tab(state, col);
-                        }
+                    bool overflow;
+                    int col = mbf_to_int16(val, &overflow);
+                    if (!overflow && col >= 1) {
+                        io_tab(state, col);
                     }
-                    need_newline = true;
+                    need_newline = false;  /* TAB doesn't imply newline */
                 } else if (ch == TOK_SPC) {
-                    /* SPC function */
+                    /* SPC function - token includes the '(' */
                     pos++;
-                    if (pos < len && tokenized[pos] == '(') {
-                        pos++;
-                        basic_error_t err;
-                        size_t consumed;
-                        mbf_t val = eval_expression(state, tokenized + pos, len - pos,
-                                                    &consumed, &err);
-                        if (err != ERR_NONE) return err;
-                        pos += consumed;
-                        if (pos < len && tokenized[pos] == ')') pos++;
+                    basic_error_t err;
+                    size_t consumed;
+                    mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                                &consumed, &err);
+                    if (err != ERR_NONE) return err;
+                    pos += consumed;
+                    if (pos < len && tokenized[pos] == ')') pos++;
 
-                        bool overflow;
-                        int count = mbf_to_int16(val, &overflow);
-                        if (!overflow && count >= 0) {
-                            io_spc(state, count);
-                        }
+                    bool overflow;
+                    int count = mbf_to_int16(val, &overflow);
+                    if (!overflow && count >= 0) {
+                        io_spc(state, count);
                     }
-                    need_newline = true;
+                    need_newline = false;  /* SPC doesn't imply newline */
                 } else if (ch == ' ') {
                     pos++;
+                } else if (isalpha(ch)) {
+                    /* Check for string variable or function */
+                    size_t save_pos = pos;
+                    char var_name[4] = {0};  /* Room for 2 chars + $ + null */
+                    size_t name_len = 0;
+                    var_name[name_len++] = (char)tokenized[pos++];
+                    if (pos < len && isalnum(tokenized[pos])) {
+                        var_name[name_len++] = (char)tokenized[pos++];
+                    }
+
+                    if (pos < len && tokenized[pos] == '$') {
+                        /* String variable - append $ to name */
+                        pos++;
+                        var_name[name_len] = '$';
+                        string_desc_t desc = var_get_string(state, var_name);
+                        /* Print the string */
+                        if (desc.length > 0 && desc.ptr > 0) {
+                            const char *str = (const char *)(state->memory + desc.ptr);
+                            for (uint8_t i = 0; i < desc.length; i++) {
+                                io_putchar(state, str[i]);
+                            }
+                        }
+                        need_newline = true;
+                    } else {
+                        /* Numeric variable or expression - restore and evaluate */
+                        pos = save_pos;
+                        basic_error_t err;
+                        size_t consumed;
+                        mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                                    &consumed, &err);
+                        if (err != ERR_NONE) return err;
+                        pos += consumed;
+
+                        io_print_number(state, val);
+                        need_newline = true;
+                    }
+                } else if (TOK_IS_STRING_FUNC(ch)) {
+                    /* String function */
+                    basic_error_t err;
+                    size_t consumed;
+                    string_desc_t desc = eval_string_desc(state, tokenized + pos,
+                                                          len - pos, &consumed, &err);
+                    if (err != ERR_NONE) return err;
+                    pos += consumed;
+
+                    /* Print the string */
+                    if (desc.length > 0 && desc.ptr > 0) {
+                        const char *str = (const char *)(state->memory + desc.ptr);
+                        for (uint8_t i = 0; i < desc.length; i++) {
+                            io_putchar(state, str[i]);
+                        }
+                    }
+                    need_newline = true;
                 } else {
-                    /* Expression */
+                    /* Numeric expression */
                     basic_error_t err;
                     size_t consumed;
                     mbf_t val = eval_expression(state, tokenized + pos, len - pos,
@@ -814,18 +861,34 @@ static basic_error_t execute_statement(basic_state_t *state,
                 }
 
                 if (isalpha(tokenized[pos])) {
-                    char var_name[3] = {0};
-                    var_name[0] = (char)tokenized[pos++];
+                    char var_name[4] = {0};  /* Room for 2 chars + $ + null */
+                    size_t name_len = 0;
+                    var_name[name_len++] = (char)tokenized[pos++];
                     if (pos < len && isalnum(tokenized[pos])) {
-                        var_name[1] = (char)tokenized[pos++];
+                        var_name[name_len++] = (char)tokenized[pos++];
+                    }
+
+                    /* Check for string variable */
+                    bool is_string = false;
+                    if (pos < len && tokenized[pos] == '$') {
+                        is_string = true;
+                        var_name[name_len] = '$';
+                        pos++;
                     }
 
                     /* Read value from DATA */
-                    mbf_t value;
-                    basic_error_t err = io_read_numeric(state, &value);
-                    if (err != ERR_NONE) return err;
-
-                    err = stmt_let_numeric(state, var_name, value);
+                    basic_error_t err;
+                    if (is_string) {
+                        string_desc_t value;
+                        err = io_read_string(state, &value);
+                        if (err != ERR_NONE) return err;
+                        err = stmt_let_string(state, var_name, value);
+                    } else {
+                        mbf_t value;
+                        err = io_read_numeric(state, &value);
+                        if (err != ERR_NONE) return err;
+                        err = stmt_let_numeric(state, var_name, value);
+                    }
                     if (err != ERR_NONE) return err;
                 }
 
@@ -856,10 +919,16 @@ static basic_error_t execute_statement(basic_state_t *state,
                 }
 
                 if (isalpha(tokenized[pos])) {
-                    char var_name[3] = {0};
-                    var_name[0] = (char)tokenized[pos++];
+                    char var_name[4] = {0};  /* Room for 2 chars + $ + null */
+                    size_t name_len = 0;
+                    var_name[name_len++] = (char)tokenized[pos++];
                     if (pos < len && isalnum(tokenized[pos])) {
-                        var_name[1] = (char)tokenized[pos++];
+                        var_name[name_len++] = (char)tokenized[pos++];
+                    }
+                    /* Check for string array */
+                    if (pos < len && tokenized[pos] == '$') {
+                        var_name[name_len] = '$';
+                        pos++;
                     }
 
                     /* Expect ( */
@@ -983,7 +1052,42 @@ static basic_error_t execute_statement(basic_state_t *state,
 
         case TOK_DEF: {
             /* DEF FNx(y) = expr - define user function */
-            /* For now, just skip - function definition is stored */
+            pos++;
+            while (pos < len && tokenized[pos] == ' ') pos++;
+
+            /* Expect FN - either as token or as literal 'F' 'N' */
+            if (pos >= len) return ERR_SN;
+
+            char fn_name = 0;
+            if (tokenized[pos] == TOK_FN) {
+                /* FN was tokenized */
+                pos++;
+                if (pos >= len || !isalpha(tokenized[pos])) {
+                    return ERR_SN;
+                }
+                fn_name = (char)toupper(tokenized[pos]);
+                pos++;
+            } else if (toupper(tokenized[pos]) == 'F' &&
+                       pos + 1 < len && toupper(tokenized[pos + 1]) == 'N' &&
+                       pos + 2 < len && isalpha(tokenized[pos + 2])) {
+                /* FN was not tokenized - it's literal "FN" followed by function name */
+                pos += 2;  /* Skip 'F' and 'N' */
+                fn_name = (char)toupper(tokenized[pos]);
+                pos++;
+            } else {
+                return ERR_SN;
+            }
+
+            /* Store pointer to the function definition (includes parameter and expr) */
+            int fn_idx = fn_name - 'A';
+            if (fn_idx < 0 || fn_idx >= 26) return ERR_SN;
+
+            state->user_funcs[fn_idx].name = fn_name;
+            state->user_funcs[fn_idx].line = state->current_line;
+            /* Store pointer to opening paren of parameter */
+            state->user_funcs[fn_idx].ptr = (uint16_t)(state->text_ptr + pos);
+
+            /* Skip to end of line - don't evaluate the definition */
             return ERR_NONE;
         }
 
@@ -1024,19 +1128,61 @@ static basic_error_t execute_statement(basic_state_t *state,
                 while (pos < len && tokenized[pos] == ' ') pos++;
 
                 /* Get variable name */
-                char var_name[3] = {0};
+                char var_name[4] = {0};  /* Room for 2 chars + $ + null */
+                size_t name_len = 0;
                 if (pos < len && isalpha(tokenized[pos])) {
-                    var_name[0] = (char)tokenized[pos++];
+                    var_name[name_len++] = (char)tokenized[pos++];
                     if (pos < len && isalnum(tokenized[pos])) {
-                        var_name[1] = (char)tokenized[pos++];
+                        var_name[name_len++] = (char)tokenized[pos++];
                     }
                 } else {
                     return ERR_SN;
                 }
 
-                /* Check for string variable */
+                /* Check for array subscript or string variable */
+                int16_t idx1 = 0, idx2 = -1;
+                bool is_array = false;
+                bool is_string = false;
+
+                if (pos < len && tokenized[pos] == '(') {
+                    /* Array element */
+                    is_array = true;
+                    pos++;  /* Skip ( */
+
+                    /* Parse first index */
+                    basic_error_t err;
+                    size_t consumed;
+                    mbf_t idx1_val = eval_expression(state, tokenized + pos, len - pos,
+                                                     &consumed, &err);
+                    if (err != ERR_NONE) return err;
+                    pos += consumed;
+
+                    bool overflow;
+                    idx1 = mbf_to_int16(idx1_val, &overflow);
+                    if (overflow) return ERR_BS;
+
+                    /* Check for second dimension */
+                    if (pos < len && tokenized[pos] == ',') {
+                        pos++;
+                        mbf_t idx2_val = eval_expression(state, tokenized + pos, len - pos,
+                                                         &consumed, &err);
+                        if (err != ERR_NONE) return err;
+                        pos += consumed;
+                        idx2 = mbf_to_int16(idx2_val, &overflow);
+                        if (overflow) return ERR_BS;
+                    }
+
+                    /* Expect ) */
+                    if (pos >= len || tokenized[pos] != ')') {
+                        return ERR_SN;
+                    }
+                    pos++;
+                }
+
+                /* Check for string variable/array */
                 if (pos < len && tokenized[pos] == '$') {
-                    var_name[1] = '$';
+                    is_string = true;
+                    var_name[name_len] = '$';  /* Append $ to var_name */
                     pos++;
                 }
 
@@ -1048,14 +1194,71 @@ static basic_error_t execute_statement(basic_state_t *state,
                 }
                 pos++;
 
-                /* Evaluate expression */
-                basic_error_t err;
-                size_t consumed;
-                mbf_t val = eval_expression(state, tokenized + pos, len - pos,
-                                            &consumed, &err);
-                if (err != ERR_NONE) return err;
+                /* Skip spaces after = */
+                while (pos < len && tokenized[pos] == ' ') pos++;
 
-                return stmt_let_numeric(state, var_name, val);
+                if (is_string) {
+                    /* Parse string expression */
+                    if (pos < len && tokenized[pos] == '"') {
+                        /* String literal */
+                        pos++;  /* Skip opening quote */
+                        size_t str_start = pos;
+                        while (pos < len && tokenized[pos] != '"' && tokenized[pos] != '\0') {
+                            pos++;
+                        }
+                        size_t str_len = pos - str_start;
+                        if (pos < len && tokenized[pos] == '"') pos++;
+
+                        /* Create string descriptor */
+                        string_desc_t desc = string_create_len(state,
+                            (const char *)(tokenized + str_start), (uint8_t)str_len);
+
+                        return stmt_let_string(state, var_name, desc);
+                    } else if (pos < len && isalpha(tokenized[pos])) {
+                        /* String variable reference */
+                        char src_name[4] = {0};  /* Room for 2 chars + $ + null */
+                        size_t src_len = 0;
+                        src_name[src_len++] = (char)tokenized[pos++];
+                        if (pos < len && isalnum(tokenized[pos])) {
+                            src_name[src_len++] = (char)tokenized[pos++];
+                        }
+                        if (pos < len && tokenized[pos] == '$') {
+                            pos++;
+                            /* Append $ to name for proper lookup */
+                            src_name[src_len] = '$';
+                            /* Get string from source variable */
+                            string_desc_t desc = var_get_string(state, src_name);
+                            return stmt_let_string(state, var_name, desc);
+                        }
+                        return ERR_TM;  /* Type mismatch */
+                    } else if (pos < len && TOK_IS_STRING_FUNC(tokenized[pos])) {
+                        /* String function */
+                        basic_error_t err;
+                        size_t consumed;
+                        string_desc_t desc = eval_string_desc(state, tokenized + pos,
+                                                              len - pos, &consumed, &err);
+                        if (err != ERR_NONE) return err;
+                        return stmt_let_string(state, var_name, desc);
+                    } else {
+                        return ERR_SN;
+                    }
+                } else {
+                    /* Evaluate numeric expression */
+                    basic_error_t err;
+                    size_t consumed;
+                    mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                                &consumed, &err);
+                    if (err != ERR_NONE) return err;
+
+                    if (is_array) {
+                        if (!array_set_numeric(state, var_name, idx1, idx2, val)) {
+                            return ERR_BS;  /* Bad subscript */
+                        }
+                        return ERR_NONE;
+                    } else {
+                        return stmt_let_numeric(state, var_name, val);
+                    }
+                }
             }
 
             return ERR_SN;

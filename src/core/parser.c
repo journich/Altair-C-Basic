@@ -52,6 +52,8 @@ static mbf_t parse_unary(parse_state_t *ps);
 static mbf_t parse_primary(parse_state_t *ps);
 static mbf_t parse_number(parse_state_t *ps);
 static mbf_t parse_function(parse_state_t *ps, uint8_t token);
+static string_desc_t parse_string_arg(parse_state_t *ps);
+static string_desc_t parse_string_function(parse_state_t *ps);
 
 /* Peek at current token without consuming */
 static uint8_t peek(parse_state_t *ps) {
@@ -88,6 +90,176 @@ static bool expect(parse_state_t *ps, uint8_t expected) {
         return true;
     }
     return false;
+}
+
+/*
+ * Parse a string argument (for LEN, ASC, VAL, etc.)
+ * Handles string literals, string variables, and string functions.
+ */
+static string_desc_t parse_string_arg(parse_state_t *ps) {
+    string_desc_t result = {0};
+    skip_space(ps);
+
+    uint8_t c = peek(ps);
+
+    if (c == '"') {
+        /* String literal */
+        consume(ps);  /* Skip opening quote */
+        size_t start = ps->pos;
+        while (ps->pos < ps->len && ps->text[ps->pos] != '"' && ps->text[ps->pos] != '\0') {
+            ps->pos++;
+        }
+        size_t len = ps->pos - start;
+        if (peek(ps) == '"') consume(ps);  /* Skip closing quote */
+
+        if (ps->basic && len > 0) {
+            result = string_create_len(ps->basic, (const char *)(ps->text + start), (uint8_t)len);
+        }
+    } else if (isalpha(c)) {
+        /* String variable */
+        char var_name[4] = {0};
+        size_t name_len = 0;
+        var_name[name_len++] = (char)consume(ps);
+        if (ps->pos < ps->len && isalnum(peek(ps))) {
+            var_name[name_len++] = (char)consume(ps);
+        }
+        if (peek(ps) == '$') {
+            consume(ps);  /* Skip $ */
+            var_name[name_len] = '$';
+            if (ps->basic) {
+                result = var_get_string(ps->basic, var_name);
+            }
+        } else {
+            ps->error = ERR_TM;  /* Type mismatch - expected string */
+        }
+    } else if (TOK_IS_STRING_FUNC(c)) {
+        /* String function */
+        result = parse_string_function(ps);
+    } else {
+        ps->error = ERR_TM;  /* Type mismatch */
+    }
+
+    return result;
+}
+
+/*
+ * Parse a string function call (LEFT$, RIGHT$, MID$, CHR$, STR$)
+ */
+static string_desc_t parse_string_function(parse_state_t *ps) {
+    string_desc_t result = {0};
+    uint8_t token = consume(ps);
+
+    if (!expect(ps, '(')) {
+        ps->error = ERR_SN;
+        return result;
+    }
+
+    switch (token) {
+        case TOK_LEFT:
+        case TOK_RIGHT: {
+            /* LEFT$(str, n) or RIGHT$(str, n) */
+            string_desc_t str = parse_string_arg(ps);
+            if (ps->error != ERR_NONE) return result;
+
+            if (!expect(ps, ',')) {
+                ps->error = ERR_SN;
+                return result;
+            }
+
+            mbf_t n = parse_expression(ps);
+            bool overflow;
+            int16_t count = mbf_to_int16(n, &overflow);
+            if (count < 0) count = 0;
+            if (count > 255) count = 255;
+
+            if (!expect(ps, ')')) {
+                ps->error = ERR_SN;
+                return result;
+            }
+
+            if (ps->basic) {
+                if (token == TOK_LEFT) {
+                    result = string_left(ps->basic, str, (uint8_t)count);
+                } else {
+                    result = string_right(ps->basic, str, (uint8_t)count);
+                }
+            }
+            break;
+        }
+
+        case TOK_MID: {
+            /* MID$(str, start, n) or MID$(str, start) */
+            string_desc_t str = parse_string_arg(ps);
+            if (ps->error != ERR_NONE) return result;
+
+            if (!expect(ps, ',')) {
+                ps->error = ERR_SN;
+                return result;
+            }
+
+            mbf_t start_mbf = parse_expression(ps);
+            bool overflow;
+            int16_t start = mbf_to_int16(start_mbf, &overflow);
+            if (start < 1) start = 1;
+
+            uint8_t count = 255;  /* Default: rest of string */
+            if (expect(ps, ',')) {
+                mbf_t n = parse_expression(ps);
+                int16_t c = mbf_to_int16(n, &overflow);
+                if (c < 0) c = 0;
+                if (c > 255) c = 255;
+                count = (uint8_t)c;
+            }
+
+            if (!expect(ps, ')')) {
+                ps->error = ERR_SN;
+                return result;
+            }
+
+            if (ps->basic) {
+                result = string_mid(ps->basic, str, (uint8_t)start, count);
+            }
+            break;
+        }
+
+        case TOK_CHR: {
+            /* CHR$(n) */
+            mbf_t code = parse_expression(ps);
+            bool overflow;
+            int16_t c = mbf_to_int16(code, &overflow);
+
+            if (!expect(ps, ')')) {
+                ps->error = ERR_SN;
+                return result;
+            }
+
+            if (ps->basic && c >= 0 && c <= 255) {
+                result = string_chr(ps->basic, (uint8_t)c);
+            }
+            break;
+        }
+
+        case TOK_STR: {
+            /* STR$(n) */
+            mbf_t value = parse_expression(ps);
+
+            if (!expect(ps, ')')) {
+                ps->error = ERR_SN;
+                return result;
+            }
+
+            if (ps->basic) {
+                result = string_str(ps->basic, value);
+            }
+            break;
+        }
+
+        default:
+            ps->error = ERR_SN;
+            break;
+    }
+
+    return result;
 }
 
 /*
@@ -345,6 +517,116 @@ static mbf_t parse_primary(parse_state_t *ps) {
         return parse_function(ps, c);
     }
 
+    /* User-defined function FN (either as token or literal "FN") */
+    bool is_fn = (c == TOK_FN) ||
+                 (toupper(c) == 'F' &&
+                  ps->pos + 1 < ps->len &&
+                  toupper(ps->text[ps->pos + 1]) == 'N' &&
+                  ps->pos + 2 < ps->len &&
+                  isalpha(ps->text[ps->pos + 2]));
+    if (is_fn) {
+        char fn_name;
+        if (c == TOK_FN) {
+            consume(ps);  /* Consume FN token */
+            /* Get function name (A-Z) */
+            if (ps->pos >= ps->len || !isalpha(peek(ps))) {
+                ps->error = ERR_SN;
+                return MBF_ZERO;
+            }
+            fn_name = (char)toupper(consume(ps));
+        } else {
+            /* Literal "FN" */
+            consume(ps);  /* Consume 'F' */
+            consume(ps);  /* Consume 'N' */
+            fn_name = (char)toupper(consume(ps));  /* Get function name */
+        }
+        int fn_idx = fn_name - 'A';
+
+        if (!ps->basic || fn_idx < 0 || fn_idx >= 26 ||
+            ps->basic->user_funcs[fn_idx].name == 0) {
+            ps->error = ERR_UF;  /* Undefined function */
+            return MBF_ZERO;
+        }
+
+        /* Expect opening paren for argument */
+        if (!expect(ps, '(')) {
+            ps->error = ERR_SN;
+            return MBF_ZERO;
+        }
+
+        /* Evaluate argument */
+        mbf_t arg_value = parse_expression(ps);
+
+        if (!expect(ps, ')')) {
+            ps->error = ERR_SN;
+            return MBF_ZERO;
+        }
+
+        /* Get function definition pointer */
+        uint16_t def_ptr = ps->basic->user_funcs[fn_idx].ptr;
+        const uint8_t *def_text = ps->basic->memory + def_ptr;
+
+        /* Parse parameter from definition: (X) = expr */
+        size_t dp = 0;
+        if (def_text[dp] != '(') {
+            ps->error = ERR_SN;
+            return MBF_ZERO;
+        }
+        dp++;
+
+        /* Get parameter name */
+        char param_name[3] = {0};
+        if (!isalpha(def_text[dp])) {
+            ps->error = ERR_SN;
+            return MBF_ZERO;
+        }
+        param_name[0] = (char)def_text[dp++];
+        if (isalnum(def_text[dp])) {
+            param_name[1] = (char)def_text[dp++];
+        }
+
+        if (def_text[dp] != ')') {
+            ps->error = ERR_SN;
+            return MBF_ZERO;
+        }
+        dp++;
+
+        /* Skip = (may be literal '=' or TOK_EQ token) */
+        while (def_text[dp] == ' ') dp++;
+        if (def_text[dp] != '=' && def_text[dp] != TOK_EQ) {
+            ps->error = ERR_SN;
+            return MBF_ZERO;
+        }
+        dp++;
+
+        /* Save current value of parameter */
+        mbf_t saved_value = var_get_numeric(ps->basic, param_name);
+
+        /* Set parameter to argument value */
+        var_set_numeric(ps->basic, param_name, arg_value);
+
+        /* Find end of definition (end of line or colon) */
+        size_t def_len = 0;
+        while (def_text[dp + def_len] != '\0' && def_text[dp + def_len] != ':') {
+            def_len++;
+        }
+
+        /* Evaluate expression */
+        basic_error_t err;
+        size_t consumed;
+        mbf_t result = eval_expression(ps->basic, def_text + dp, def_len, &consumed, &err);
+
+        /* Restore parameter */
+        var_set_numeric(ps->basic, param_name, saved_value);
+
+        if (err != ERR_NONE) {
+            ps->error = err;
+            return MBF_ZERO;
+        }
+
+        return result;
+    }
+
     /* Variable lookup */
     if (isalpha(c)) {
         char var_name[3] = {0};
@@ -371,7 +653,7 @@ static mbf_t parse_primary(parse_state_t *ps) {
             bool overflow;
             int idx1 = mbf_to_int16(idx1_val, &overflow);
 
-            int idx2 = 0;
+            int idx2 = -1;  /* -1 indicates 1D array */
             if (peek(ps) == ',') {
                 consume(ps);
                 mbf_t idx2_val = parse_expression(ps);
@@ -448,6 +730,51 @@ static mbf_t parse_number(parse_state_t *ps) {
 static mbf_t parse_function(parse_state_t *ps, uint8_t token) {
     mbf_t arg = MBF_ZERO;
 
+    /* Handle string functions specially - they take string arguments */
+    if (token == TOK_LEN || token == TOK_ASC || token == TOK_VAL) {
+        if (!expect(ps, '(')) {
+            ps->error = ERR_SN;
+            return MBF_ZERO;
+        }
+
+        string_desc_t str = parse_string_arg(ps);
+
+        if (!expect(ps, ')')) {
+            ps->error = ERR_SN;
+            return MBF_ZERO;
+        }
+
+        switch (token) {
+            case TOK_LEN:
+                return mbf_from_int16(str.length);
+
+            case TOK_ASC:
+                if (str.length > 0 && str.ptr > 0 && ps->basic) {
+                    return mbf_from_int16(ps->basic->memory[str.ptr]);
+                }
+                ps->error = ERR_FC;  /* Illegal function call */
+                return MBF_ZERO;
+
+            case TOK_VAL: {
+                if (str.length == 0 || str.ptr == 0 || !ps->basic) {
+                    return MBF_ZERO;
+                }
+                /* Copy string to buffer and parse as number */
+                char buf[256];
+                size_t len = str.length < 255 ? str.length : 255;
+                memcpy(buf, ps->basic->memory + str.ptr, len);
+                buf[len] = '\0';
+                mbf_t result;
+                if (mbf_from_string(buf, &result) > 0) {
+                    return result;
+                }
+                return MBF_ZERO;
+            }
+            default:
+                return MBF_ZERO;
+        }
+    }
+
     /* Most functions require parentheses */
     if (!expect(ps, '(')) {
         ps->error = ERR_SN;
@@ -513,7 +840,7 @@ static mbf_t parse_function(parse_state_t *ps, uint8_t token) {
 
         case TOK_FRE:
             if (ps->basic) {
-                return mbf_from_int16((int16_t)basic_free_memory(ps->basic));
+                return mbf_from_int32((int32_t)basic_free_memory(ps->basic));
             }
             return MBF_ZERO;
 
@@ -537,13 +864,6 @@ static mbf_t parse_function(parse_state_t *ps, uint8_t token) {
                 fprintf(ps->basic->output, "?INP NOT SUPPORTED\n");
                 ps->basic->warned_inp = true;
             }
-            return MBF_ZERO;
-
-        /* String functions - return 0 for numeric context */
-        case TOK_LEN:
-        case TOK_ASC:
-        case TOK_VAL:
-            /* TODO: implement string functions */
             return MBF_ZERO;
 
         default:
@@ -580,11 +900,44 @@ mbf_t eval_expression(basic_state_t *state, const uint8_t *text, size_t len,
 const char *eval_string_expression(basic_state_t *state, const uint8_t *text,
                                    size_t len, size_t *consumed,
                                    basic_error_t *error) {
-    /* TODO: implement string expression evaluation */
-    (void)state;
-    (void)text;
-    (void)len;
-    if (consumed) *consumed = 0;
-    if (error) *error = ERR_NONE;
-    return NULL;
+    parse_state_t ps = {
+        .text = text,
+        .pos = 0,
+        .len = len,
+        .basic = state,
+        .error = ERR_NONE
+    };
+
+    string_desc_t result = parse_string_arg(&ps);
+
+    if (consumed) *consumed = ps.pos;
+    if (error) *error = ps.error;
+
+    if (ps.error != ERR_NONE || result.length == 0) {
+        return NULL;
+    }
+
+    return (const char *)(state->memory + result.ptr);
+}
+
+/*
+ * Evaluate a string expression and return descriptor.
+ */
+string_desc_t eval_string_desc(basic_state_t *state, const uint8_t *text,
+                               size_t len, size_t *consumed,
+                               basic_error_t *error) {
+    parse_state_t ps = {
+        .text = text,
+        .pos = 0,
+        .len = len,
+        .basic = state,
+        .error = ERR_NONE
+    };
+
+    string_desc_t result = parse_string_arg(&ps);
+
+    if (consumed) *consumed = ps.pos;
+    if (error) *error = ps.error;
+
+    return result;
 }

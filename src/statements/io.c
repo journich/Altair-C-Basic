@@ -243,12 +243,15 @@ static const uint8_t *find_next_data(basic_state_t *state) {
 
     uint8_t *ptr;
     uint8_t *end = state->memory + state->program_end;
+    bool in_data = false;  /* Track if we're inside a DATA statement */
 
     if (state->data_ptr == 0) {
         /* Start from beginning of first line's TEXT (skip 4-byte header) */
         ptr = state->memory + state->program_start + 4;
     } else {
         ptr = state->memory + state->data_ptr;
+        /* If resuming from previous position, we're in a DATA statement */
+        in_data = true;
     }
 
     while (ptr < end) {
@@ -259,30 +262,34 @@ static const uint8_t *find_next_data(basic_state_t *state) {
             return ptr;
         }
 
-        /* If we're at a comma in a DATA statement, move to next item */
-        if (*ptr == ',') {
+        /* If we're at a comma and inside a DATA statement, move to next item */
+        if (in_data && *ptr == ',') {
             ptr++;
             state->data_ptr = (uint16_t)(ptr - state->memory);
             return ptr;
         }
 
-        /* If we're at end of line (0), move to next line */
-        if (*ptr == 0) {
-            ptr++;  /* Skip null */
+        /* If we're at end of line (0) or colon, DATA statement ends */
+        if (*ptr == 0 || *ptr == ':') {
+            in_data = false;  /* No longer in a DATA statement */
 
-            /* Check if there's more program */
-            if (ptr >= end) return NULL;
+            if (*ptr == 0) {
+                ptr++;  /* Skip null */
 
-            /* Read link to next line */
-            uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
-            if (link == 0) return NULL;
+                /* Check if there's more program */
+                if (ptr >= end) return NULL;
 
-            /* Update data line number */
-            state->data_line = (uint16_t)(ptr[2] | (ptr[3] << 8));
+                /* Read link to next line */
+                uint16_t link = (uint16_t)(ptr[0] | (ptr[1] << 8));
+                if (link == 0) return NULL;
 
-            /* Move to start of line text */
-            ptr += 4;
-            continue;
+                /* Update data line number */
+                state->data_line = (uint16_t)(ptr[2] | (ptr[3] << 8));
+
+                /* Move to start of line text */
+                ptr += 4;
+                continue;
+            }
         }
 
         /* Skip other content */
@@ -302,6 +309,9 @@ basic_error_t io_read_numeric(basic_state_t *state, mbf_t *value) {
     if (!data) {
         return ERR_OD;  /* Out of data */
     }
+
+    /* Skip leading spaces */
+    while (*data == ' ') data++;
 
     /* Parse the number */
     size_t consumed = mbf_from_string((const char *)data, value);
@@ -327,6 +337,9 @@ basic_error_t io_read_string(basic_state_t *state, string_desc_t *value) {
     if (!data) {
         return ERR_OD;  /* Out of data */
     }
+
+    /* Skip leading spaces */
+    while (*data == ' ') data++;
 
     /* Find end of string (comma, colon, or null) */
     const uint8_t *start = data;
