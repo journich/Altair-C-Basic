@@ -465,11 +465,12 @@ uint16_t basic_free_memory(basic_state_t *state) {
 /**
  * @brief Print the BASIC startup banner
  *
- * Displays the iconic Altair BASIC banner:
+ * Displays the Microsoft BASIC banner with proper attribution:
  * ```
- * ALTAIR BASIC REV. 4.0
+ * MICROSOFT BASIC REV. 4.0 - ALTAIR VERSION
  * [8K VERSION]
- * COPYRIGHT 1976 BY MITS INC.
+ * COPYRIGHT 1976 BY MICROSOFT
+ * C VERSION COPYRIGHT 2025 BY TIM BUCHALKA
  *
  * XXXXX BYTES FREE
  * ```
@@ -478,9 +479,10 @@ uint16_t basic_free_memory(basic_state_t *state) {
  */
 void basic_print_banner(basic_state_t *state) {
     if (!state || !state->output) return;
-    fprintf(state->output, "\nALTAIR BASIC REV. 4.0\n");
+    fprintf(state->output, "\nMICROSOFT BASIC REV. 4.0 - ALTAIR VERSION\n");
     fprintf(state->output, "[8K VERSION]\n");
-    fprintf(state->output, "COPYRIGHT 1976 BY MITS INC.\n\n");
+    fprintf(state->output, "COPYRIGHT 1976 BY MICROSOFT\n");
+    fprintf(state->output, "C VERSION COPYRIGHT 2025 BY TIM BUCHALKA\n\n");
     fprintf(state->output, "%u BYTES FREE\n\n", basic_free_memory(state));
 }
 
