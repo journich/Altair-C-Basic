@@ -93,6 +93,12 @@
 #include <signal.h>
 
 
+/* In 8K BASIC, only first 2 chars of variable names are significant,
+ * but we must consume all remaining alphanumeric characters */
+#define SKIP_EXTRA_VAR_CHARS() \
+    while (pos < len && isalnum(tokenized[pos])) pos++
+
+
 /*============================================================================
  * GLOBAL ERROR STATE
  *
@@ -1189,6 +1195,7 @@ static basic_error_t execute_statement(basic_state_t *state,
                 if (pos < len && isalnum(tokenized[pos])) {
                     var_name[1] = (char)tokenized[pos++];
                 }
+                SKIP_EXTRA_VAR_CHARS();  /* Skip remaining chars in long var names */
             } else {
                 return ERR_SN;
             }
@@ -1294,6 +1301,7 @@ static basic_error_t execute_statement(basic_state_t *state,
                     if (pos < len && isalnum(tokenized[pos])) {
                         var_name[1] = (char)tokenized[pos++];
                     }
+                    SKIP_EXTRA_VAR_CHARS();  /* Skip remaining chars in long var names */
                 }
 
                 bool continue_loop;
@@ -1445,6 +1453,7 @@ static basic_error_t execute_statement(basic_state_t *state,
                 if (pos < len && isalnum(tokenized[pos])) {
                     var_name[name_len++] = (char)tokenized[pos++];
                 }
+                SKIP_EXTRA_VAR_CHARS();  /* Skip remaining chars in long var names */
 
                 /* Check for string variable */
                 if (pos < len && tokenized[pos] == '$') {
@@ -1509,6 +1518,7 @@ static basic_error_t execute_statement(basic_state_t *state,
                     if (pos < len && isalnum(tokenized[pos])) {
                         var_name[name_len++] = (char)tokenized[pos++];
                     }
+                    SKIP_EXTRA_VAR_CHARS();  /* Skip remaining chars in long var names */
 
                     /* Check for string variable ($ comes before array subscript) */
                     bool is_string = false;
@@ -1616,6 +1626,7 @@ static basic_error_t execute_statement(basic_state_t *state,
                     if (pos < len && isalnum(tokenized[pos])) {
                         var_name[name_len++] = (char)tokenized[pos++];
                     }
+                    SKIP_EXTRA_VAR_CHARS();  /* Skip remaining chars in long var names */
                     /* Check for string array */
                     if (pos < len && tokenized[pos] == '$') {
                         var_name[name_len] = '$';
@@ -1842,6 +1853,7 @@ static basic_error_t execute_statement(basic_state_t *state,
                     if (pos < len && isalnum(tokenized[pos])) {
                         var_name[name_len++] = (char)tokenized[pos++];
                     }
+                    SKIP_EXTRA_VAR_CHARS();  /* Skip remaining chars in long var names */
                 } else {
                     return ERR_SN;
                 }

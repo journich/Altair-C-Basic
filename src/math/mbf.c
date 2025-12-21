@@ -462,17 +462,14 @@ mbf_t mbf_int(mbf_t a) {
         uint32_t frac = mantissa & ~mask;
         mantissa &= mask;
 
-        /* For negative numbers, if there was a fractional part, subtract 1 */
+        /* For negative numbers, if there was a fractional part, round down (away from zero) */
         if (negative && frac != 0) {
-            /* Need to subtract 1 from the integer part */
-            mantissa -= (1u << frac_bits);
-            if (mantissa == 0) {
-                return MBF_ZERO;
-            }
-            /* Re-normalize if needed */
-            while ((mantissa & 0x800000) == 0) {
-                mantissa <<= 1;
-                exponent--;
+            /* Need to increase magnitude (make more negative) by adding 1 */
+            mantissa += (1u << frac_bits);
+            /* Handle carry/overflow - need to renormalize */
+            if (mantissa & 0x1000000) {
+                mantissa >>= 1;
+                exponent++;
             }
         }
     }

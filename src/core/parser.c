@@ -245,6 +245,11 @@ static string_desc_t parse_string_term(parse_state_t *ps) {
         if (ps->pos < ps->len && isalnum(peek(ps))) {
             var_name[name_len++] = (char)consume(ps);
         }
+        /* In 8K BASIC, only first 2 chars are significant, but we must
+         * consume all remaining alphanumeric characters in the name */
+        while (ps->pos < ps->len && isalnum(peek(ps))) {
+            consume(ps);
+        }
         if (peek(ps) == '$') {
             consume(ps);  /* Skip $ */
             var_name[name_len] = '$';
@@ -950,9 +955,15 @@ static mbf_t parse_primary(parse_state_t *ps) {
         char var_name[3] = {0};
         var_name[0] = (char)consume(ps);
 
-        /* Second character of variable name */
+        /* Second character of variable name (if alphanumeric) */
         if (ps->pos < ps->len && isalnum(peek(ps))) {
             var_name[1] = (char)consume(ps);
+        }
+
+        /* In 8K BASIC, only first 2 chars are significant, but we must
+         * consume all remaining alphanumeric characters in the name */
+        while (ps->pos < ps->len && isalnum(peek(ps))) {
+            consume(ps);
         }
 
         /* Check for string variable (ends with $) - not handled for numeric expressions */
