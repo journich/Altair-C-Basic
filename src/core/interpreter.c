@@ -838,20 +838,59 @@ static basic_error_t execute_statement(basic_state_t *state,
                     }
 
                     if (pos < len && tokenized[pos] == '$') {
-                        /* String expression - use eval_string_desc to handle concatenation */
-                        pos = save_pos;  /* Restore to start of expression */
-                        basic_error_t err;
-                        size_t consumed;
-                        string_desc_t desc = eval_string_desc(state, tokenized + pos,
-                                                              len - pos, &consumed, &err);
-                        if (err != ERR_NONE) return err;
-                        pos += consumed;
+                        /* Check if this is a string comparison (result is numeric) */
+                        /* Look ahead past $ and any array subscript to see if comparison follows */
+                        size_t look_pos = pos + 1;  /* Skip $ */
+                        /* Skip any remaining variable name chars in look_pos */
+                        while (look_pos < len && isalnum(tokenized[look_pos])) look_pos++;
+                        if (look_pos < len && tokenized[look_pos] == '(') {
+                            /* Skip array subscript */
+                            int paren_depth = 1;
+                            look_pos++;
+                            while (look_pos < len && paren_depth > 0) {
+                                if (tokenized[look_pos] == '(') paren_depth++;
+                                else if (tokenized[look_pos] == ')') paren_depth--;
+                                look_pos++;
+                            }
+                        }
+                        /* Skip spaces */
+                        while (look_pos < len && tokenized[look_pos] == ' ') look_pos++;
+                        /* Check for comparison operator */
+                        bool is_comparison = false;
+                        if (look_pos < len) {
+                            uint8_t next_ch = tokenized[look_pos];
+                            if (next_ch == TOK_LT || next_ch == TOK_GT || next_ch == TOK_EQ ||
+                                next_ch == '<' || next_ch == '>' || next_ch == '=') {
+                                is_comparison = true;
+                            }
+                        }
 
-                        /* Print the string */
-                        if (desc.length > 0 && desc.ptr > 0) {
-                            const char *str = (const char *)(state->memory + desc.ptr);
-                            for (uint8_t i = 0; i < desc.length; i++) {
-                                io_putchar(state, str[i]);
+                        if (is_comparison) {
+                            /* String comparison - result is numeric, use eval_expression */
+                            pos = save_pos;
+                            basic_error_t err;
+                            size_t consumed;
+                            mbf_t val = eval_expression(state, tokenized + pos, len - pos,
+                                                        &consumed, &err);
+                            if (err != ERR_NONE) return err;
+                            pos += consumed;
+                            io_print_number(state, val);
+                        } else {
+                            /* Pure string expression - use eval_string_desc */
+                            pos = save_pos;  /* Restore to start of expression */
+                            basic_error_t err;
+                            size_t consumed;
+                            string_desc_t desc = eval_string_desc(state, tokenized + pos,
+                                                                  len - pos, &consumed, &err);
+                            if (err != ERR_NONE) return err;
+                            pos += consumed;
+
+                            /* Print the string */
+                            if (desc.length > 0 && desc.ptr > 0) {
+                                const char *str = (const char *)(state->memory + desc.ptr);
+                                for (uint8_t i = 0; i < desc.length; i++) {
+                                    io_putchar(state, str[i]);
+                                }
                             }
                         }
                         need_newline = true;

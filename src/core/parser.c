@@ -43,10 +43,10 @@
  *   parse_multiplicative() <- *, /
  *         |
  *         v
- *   parse_power()          <- ^ (exponentiation)
+ *   parse_unary()          <- unary -, + (LOWER precedence than ^)
  *         |
  *         v
- *   parse_unary()          <- unary -, +
+ *   parse_power()          <- ^ (exponentiation, HIGHER than unary -)
  *         |
  *         v
  *   parse_primary()        <- numbers, variables, functions, (expr)
@@ -62,8 +62,8 @@
  * | 4     | =, <>, <, >, <=, >=| Left        |
  * | 5     | +, -             | Left          |
  * | 6     | *, /             | Left          |
- * | 7     | ^                | Left*         |
- * | 8     | unary -, +       | Unary (right) |
+ * | 7     | unary -, +       | Unary (right) |
+ * | 8     | ^                | Left*         |
  * | 9     | primary          | -             |
  *
  * *Note: Standard math has ^ as right-associative, but we do left for simplicity.
@@ -731,10 +731,10 @@ static mbf_t parse_additive(parse_state_t *ps) {
 }
 
 /*
- * Parse multiplicative expression: power ((*|/) power)*
+ * Parse multiplicative expression: unary ((*|/) unary)*
  */
 static mbf_t parse_multiplicative(parse_state_t *ps) {
-    mbf_t left = parse_power(ps);
+    mbf_t left = parse_unary(ps);
 
     for (;;) {
         skip_space(ps);
@@ -742,11 +742,11 @@ static mbf_t parse_multiplicative(parse_state_t *ps) {
 
         if (op == TOK_MUL) {
             consume(ps);
-            mbf_t right = parse_power(ps);
+            mbf_t right = parse_unary(ps);
             left = mbf_mul(left, right);
         } else if (op == TOK_DIV) {
             consume(ps);
-            mbf_t right = parse_power(ps);
+            mbf_t right = parse_unary(ps);
             left = mbf_div(left, right);
         } else {
             break;
@@ -757,15 +757,16 @@ static mbf_t parse_multiplicative(parse_state_t *ps) {
 }
 
 /*
- * Parse power expression: unary (^ unary)*
+ * Parse power expression: primary (^ primary)*
  * Note: ^ is right-associative, but we implement left-to-right for simplicity
+ * This has HIGHER precedence than unary -, so -3^2 evaluates as -(3^2) = -9
  */
 static mbf_t parse_power(parse_state_t *ps) {
-    mbf_t left = parse_unary(ps);
+    mbf_t left = parse_primary(ps);
 
     while (peek(ps) == TOK_POW) {
         consume(ps);
-        mbf_t right = parse_unary(ps);
+        mbf_t right = parse_primary(ps);
 
         /* Exponentiation: a^b = exp(b * log(a)) */
         /* TODO: Use proper MBF implementation */
@@ -794,7 +795,8 @@ static mbf_t parse_power(parse_state_t *ps) {
 }
 
 /*
- * Parse unary expression: (+|-)? primary
+ * Parse unary expression: (+|-)? power
+ * Unary - has LOWER precedence than ^, so -3^2 = -(3^2) = -9
  */
 static mbf_t parse_unary(parse_state_t *ps) {
     skip_space(ps);
@@ -809,7 +811,7 @@ static mbf_t parse_unary(parse_state_t *ps) {
         return mbf_neg(val);
     }
 
-    return parse_primary(ps);
+    return parse_power(ps);
 }
 
 /*
