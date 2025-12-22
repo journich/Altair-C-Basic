@@ -426,11 +426,11 @@ basic_error_t stmt_randomize(basic_state_t *state, mbf_t seed) {
     if (!state) return ERR_FC;
 
     if (mbf_is_zero(seed)) {
-        /* Seed from time/counter */
+        /* Seed from time/counter - reset to initial state */
         rnd_reseed(&state->rnd);
     } else {
-        /* Use provided seed */
-        state->rnd.last_value = seed;
+        /* Use provided seed - derive 24-bit state from MBF bits */
+        rnd_seed_from_mbf(&state->rnd, seed);
     }
 
     return ERR_NONE;

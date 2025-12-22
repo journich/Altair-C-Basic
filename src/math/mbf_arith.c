@@ -174,21 +174,27 @@ mbf_t mbf_sub(mbf_t a, mbf_t b) {
  *============================================================================*/
 
 /**
- * @brief Multiply two MBF numbers
+ * @brief Multiply two MBF numbers using exact 8080 algorithm
  *
- * Implements floating-point multiplication.
+ * This implements the EXACT shift-and-add algorithm from 8kbas_src.mac
+ * lines 3518-3594 (L135B/fmult2/fmult4).
  *
- * Key insight: When multiplying two 24-bit mantissas (each representing
- * 1.xxx in normalized form), the product is 48 bits representing a
- * value between 1.0 and 4.0 (approximately).
+ * The 8080 uses RAR (rotate right through carry) which creates a 33-bit
+ * shift register: carry + C + H + L + B. The algorithm:
  *
- * @param a First operand
- * @param b Second operand
+ * For each FAC mantissa byte (lo, mid, hi):
+ *   If byte is 0: shift product right by 8 (optimization)
+ *   Else for each of 8 bits:
+ *     1. RAR the FAC byte - bit 0 goes to carry
+ *     2. If carry: add multiplicand to C,H,L (24-bit add with carry to C)
+ *     3. RAR through C,H,L,B - shifts right with carry propagation
+ *
+ * The key is that RAR rotates THROUGH the carry flag, so the carry from
+ * the addition becomes the new MSB after shifting.
+ *
+ * @param a First operand (FAC - the value being multiplied)
+ * @param b Second operand (multiplicand from memory)
  * @return Product a * b
- *
- * Errors:
- * - MBF_OVERFLOW: Result exceeds MBF range
- * - MBF_UNDERFLOW: Result is too small (flushed to zero)
  */
 mbf_t mbf_mul(mbf_t a, mbf_t b) {
     /* Handle zero cases */
@@ -200,8 +206,22 @@ mbf_t mbf_mul(mbf_t a, mbf_t b) {
     bool neg_b = mbf_is_negative(b);
     bool result_neg = (neg_a != neg_b);
 
-    /* Calculate result exponent: exp_a + exp_b - bias */
-    int result_exp = (int)a.bytes.exponent + (int)b.bytes.exponent - MBF_BIAS;
+    /*
+     * Calculate result exponent: exp_a + exp_b - 128
+     *
+     * Note: The bias for MULTIPLICATION is 128, not 129!
+     * This matches the 8080's muldiv code which uses ADI 80H (add 128).
+     *
+     * Mathematical justification:
+     * - Both mantissas have implicit 1 at bit 23, so they're in [2^23, 2^24)
+     * - Product is up to 48 bits, with MSB at bit 46-47
+     * - We take top 24 bits, effectively dividing by 2^24
+     * - This requires subtracting 24 from the exponent sum
+     * - But wait, the mantissa interpretation uses 2^(exp - 129 - 23)
+     * - So: result_exp - 152 = exp_a + exp_b - 258 - 46 + 24
+     *       result_exp = exp_a + exp_b - 128
+     */
+    int result_exp = (int)a.bytes.exponent + (int)b.bytes.exponent - 128;
 
     /* Check for overflow/underflow */
     if (result_exp > 255) {
@@ -213,45 +233,176 @@ mbf_t mbf_mul(mbf_t a, mbf_t b) {
         return MBF_ZERO;
     }
 
-    /* Get mantissas */
-    uint32_t mant_a = mbf_get_mantissa24(a);
-    uint32_t mant_b = mbf_get_mantissa24(b);
-
     /*
-     * Multiply 24-bit mantissas to get 48-bit result.
-     * We use 64-bit arithmetic for the multiplication.
+     * Get mantissas with implicit bit.
+     * 'a' is the FAC (multiplier) - we process its bits one by one.
+     * 'b' is the multiplicand - we add it when FAC bits are 1.
      */
-    uint64_t product = (uint64_t)mant_a * (uint64_t)mant_b;
+    uint32_t fac_mant = mbf_get_mantissa24(a);
+    uint32_t mult_mant = mbf_get_mantissa24(b);
 
     /*
-     * The product of two 24-bit mantissas (each with implicit 1 bit = 1.xxx)
-     * gives a result between 1.0 and 4.0 (scaled by 2^46).
+     * 8080 register simulation:
+     *   C = product_hi (8 bits)
+     *   H = product_mid (8 bits)
+     *   L = product_lo (8 bits)
+     *   B = rounding byte (8 bits)
+     *   carry = carry flag (1 bit)
      *
-     * If bit 47 is set (product >= 2.0 * 2^46), we take bits 47:24 and ADD 1 to exponent.
-     * If only bit 46 is set (1.0 <= product < 2.0 * 2^46), we take bits 46:23.
+     * Multiplicand is in DE with high byte stored separately:
+     *   mult_lo = mult_mant & 0xFF
+     *   mult_mid = (mult_mant >> 8) & 0xFF
+     *   mult_hi = (mult_mant >> 16) & 0xFF
      */
-    uint32_t result_mant;
-    if (product & 0x800000000000ULL) {
-        /* Bit 47 set: product >= 2.0, shift right 24 and add 1 to exponent */
-        result_mant = (uint32_t)(product >> 24);
-        result_exp++;
-        if (result_exp > 255) {
-            mbf_set_error(MBF_OVERFLOW);
-            return mbf_make(result_neg, 0xFF, 0xFFFFFF);
+    uint8_t C = 0, H = 0, L = 0, B = 0;
+    uint8_t carry = 0;
+
+    uint8_t mult_lo = mult_mant & 0xFF;
+    uint8_t mult_mid = (mult_mant >> 8) & 0xFF;
+    uint8_t mult_hi = (mult_mant >> 16) & 0xFF;
+
+    /* FAC mantissa bytes (processed lo, mid, hi) */
+    uint8_t fac_bytes[3] = {
+        (uint8_t)(fac_mant & 0xFF),
+        (uint8_t)((fac_mant >> 8) & 0xFF),
+        (uint8_t)((fac_mant >> 16) & 0xFF)
+    };
+
+    for (int byte_idx = 0; byte_idx < 3; byte_idx++) {
+        uint8_t fac_byte = fac_bytes[byte_idx];
+
+        if (fac_byte == 0) {
+            /*
+             * fmult3: Shift product right by 8 (optimization)
+             * mov b,e; mov e,d; mov d,c; mov c,a (where a=0)
+             */
+            B = L;
+            L = H;
+            H = C;
+            C = 0;
+        } else {
+            /*
+             * fmult4 loop: Process 8 bits of FAC byte
+             *
+             * IMPORTANT: The 8080's 'ora a' instruction (which tests if
+             * the byte is zero) also CLEARS the carry flag! We must do
+             * the same before entering the bit loop.
+             */
+            carry = 0;  /* ora a clears carry */
+            for (int bit = 0; bit < 8; bit++) {
+                /*
+                 * RAR: Rotate A right through carry
+                 * New carry = bit 0 of A
+                 * Bit 7 of A = old carry
+                 */
+                uint8_t new_carry = fac_byte & 1;
+                fac_byte = (uint8_t)((fac_byte >> 1) | (carry << 7));
+                carry = new_carry;
+
+                if (carry) {
+                    /*
+                     * Add multiplicand to C,H,L:
+                     * dad d: HL = HL + DE (add mult_lo/mid to H/L)
+                     * aci 0: C = C + 0 + carry
+                     */
+                    uint16_t hl = (uint16_t)(((uint16_t)H << 8) | L);
+                    uint16_t de = (uint16_t)(((uint16_t)mult_mid << 8) | mult_lo);
+                    uint32_t sum = hl + de;
+                    L = sum & 0xFF;
+                    H = (sum >> 8) & 0xFF;
+                    carry = (sum >> 16) & 1;
+
+                    /* aci 00H: C = C + carry + mult_hi */
+                    uint16_t c_sum = (uint16_t)C + (uint16_t)mult_hi + carry;
+                    C = c_sum & 0xFF;
+                    carry = (c_sum >> 8) & 1;
+                }
+
+                /*
+                 * RAR through C, H, L, B:
+                 * Each RAR rotates right through carry
+                 */
+                uint8_t new_c_carry = C & 1;
+                C = (uint8_t)((C >> 1) | (carry << 7));
+                carry = new_c_carry;
+
+                uint8_t new_h_carry = H & 1;
+                H = (uint8_t)((H >> 1) | (carry << 7));
+                carry = new_h_carry;
+
+                uint8_t new_l_carry = L & 1;
+                L = (uint8_t)((L >> 1) | (carry << 7));
+                carry = new_l_carry;
+
+                uint8_t new_b_carry = B & 1;
+                B = (uint8_t)((B >> 1) | (carry << 7));
+                carry = new_b_carry;
+            }
         }
-    } else {
-        /* Only bit 46 set: product < 2.0, shift right 23 */
-        result_mant = (uint32_t)(product >> 23);
     }
 
-    /* Ensure bit 23 is set (normalized) */
-    while ((result_mant & 0x800000) == 0 && result_exp > 0) {
-        result_mant <<= 1;
+    /*
+     * After multiplication:
+     *   C,H,L = 24-bit mantissa result
+     *   B = rounding byte (extended precision)
+     *
+     * The 8080's 'normal' function includes B in the shift loop:
+     *   - L = B (rounding byte), H = original L (low product byte)
+     *   - Shift C,D,H,L together, so B's bits flow into the product
+     *   - After shifting, round based on the new extended precision bits
+     */
+
+    /*
+     * 8080-style normalization with extended precision byte.
+     * We shift the full 32 bits (C << 24 | H << 16 | L << 8 | B).
+     * After each shift, B's bits flow into L, L's into H, etc.
+     */
+    while ((C & 0x80) == 0 && (C != 0 || H != 0 || L != 0) && result_exp > 0) {
+        /* Shift C,H,L,B left together */
+        uint8_t shift_carry = (B >> 7) & 1;
+        B = (uint8_t)(B << 1);
+
+        uint8_t next_carry = (L >> 7) & 1;
+        L = (uint8_t)((L << 1) | shift_carry);
+        shift_carry = next_carry;
+
+        next_carry = (H >> 7) & 1;
+        H = (uint8_t)((H << 1) | shift_carry);
+        shift_carry = next_carry;
+
+        C = (uint8_t)((C << 1) | shift_carry);
+
         result_exp--;
     }
 
-    if (result_exp < 1) {
+    /*
+     * Rounding: The 8080 tests bit 7 of B (the extended precision byte)
+     * after the shift loop completes. Since we simulated the exact shift
+     * behavior (including B), we test bit 7 of the current B value.
+     */
+    if (B & 0x80) {
+        /* rounda: increment L, propagate carry through H and C */
+        L++;
+        if (L == 0) {
+            H++;
+            if (H == 0) {
+                C++;
+                if (C == 0) {
+                    C = 0x80;
+                    result_exp++;
+                }
+            }
+        }
+    }
+
+    uint32_t result_mant = ((uint32_t)C << 16) | ((uint32_t)H << 8) | L;
+
+    if (result_exp < 1 || result_mant == 0) {
         return MBF_ZERO;
+    }
+    if (result_exp > 255) {
+        mbf_set_error(MBF_OVERFLOW);
+        return mbf_make(result_neg, 0xFF, 0xFFFFFF);
     }
 
     return mbf_make(result_neg, (uint8_t)result_exp, result_mant);

@@ -73,7 +73,7 @@
  * COMPATIBILITY NOTES
  * ===================
  * - Numbers use 4-byte MBF format, not IEEE 754 floats
- * - RND uses the exact two-stage algorithm with lookup tables from original
+ * - RND uses the exact 24-bit LCG algorithm from Microsoft BASIC (A=16598013, C=12820163)
  * - Hardware I/O (INP, OUT, WAIT, USR) stubs with warnings for portability
  * - PEEK/POKE work against the interpreter's memory space
  * - All error messages match original text exactly
@@ -221,21 +221,22 @@ typedef struct {
 /**
  * RND function state.
  *
- * The original BASIC used a two-stage pseudo-random generator with lookup
- * tables. This produces a specific sequence that many programs depend on
- * (e.g., for reproducible game behavior with the same seed).
+ * Altair 8K BASIC 4.0 uses a two-stage table-based pseudo-random generator:
+ * 1. Multiply by MULTIPLIER_TABLE[counter3 & 7]
+ * 2. Add ADDEND_TABLE[counter2 & 3] (index 0 is never used during generation)
+ * 3. XOR with 0x4F, swap bytes, set exponent to 0x80
+ * 4. Normalize (mixing in the old exponent)
  *
- * Algorithm:
- *   1. Multiply current value by MULTIPLIER_TABLE[counter3 & 7]
- *   2. Add ADDEND_TABLE[counter2 & 3]
- *   3. XOR result with 0x4F, set exponent to 0x80
- *   4. Increment counters (counter1 wraps at 0xAB)
+ * Three counters control the sequence:
+ * - counter1: Wraps at 0xAB (171), triggers extra byte scrambling
+ * - counter2: Cycles 1, 2, 3, 1, 2, 3... for addend selection
+ * - counter3: (RST5_result + counter3) & 7 for multiplier selection
  *
  * RND(0) returns previous value, RND(negative) reseeds, RND(positive) advances.
  */
 typedef struct {
     uint8_t counter1;       /**< Main counter, wraps at 0xAB (171 decimal) */
-    uint8_t counter2;       /**< Addend table index, mod 4 */
+    uint8_t counter2;       /**< Addend table index, mod 4 (but 0 not used) */
     uint8_t counter3;       /**< Multiplier table index, mod 8 */
     mbf_t last_value;       /**< Previous result (for RND(0)) and current seed */
 } rnd_state_t;
@@ -978,8 +979,11 @@ mbf_t basic_rnd(basic_state_t *state, mbf_t arg);
 /** Initialize RND state with default seed. */
 void rnd_init(rnd_state_t *state);
 
-/** Reseed the RNG. */
+/** Reseed the RNG to initial state. */
 void rnd_reseed(rnd_state_t *state);
+
+/** Seed the RNG from an MBF value (for RANDOMIZE statement). */
+void rnd_seed_from_mbf(rnd_state_t *state, mbf_t seed);
 
 /** Generate next random value. */
 mbf_t rnd_next(rnd_state_t *state, mbf_t arg);

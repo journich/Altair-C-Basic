@@ -8,13 +8,3 @@ X= 1 : SUB 1
 X= 2 : SUB 2
 X= 3 : SUB 3
 === END ON GOTO/GOSUB ===
-=== ON GOTO/GOSUB ===
-X= 1 : CASE 1
-X= 2 : CASE 2
-X= 3 : CASE 3
-X= 4 : CASE 4
-ON GOSUB TEST:
-X= 1 : SUB 1
-X= 2 : SUB 2
-X= 3 : SUB 3
-=== END ON GOTO/GOSUB ===

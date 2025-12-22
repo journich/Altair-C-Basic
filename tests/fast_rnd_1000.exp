@@ -1,0 +1,31 @@
+#!/usr/bin/expect -f
+set timeout 1800
+
+cd "/Users/tb/dev/NEW-BASIC/mbasic2025/4k8k/8k"
+
+file delete -force /tmp/8080_console.log
+
+spawn altair run_rnd_1000.ini
+
+expect "MEMORY SIZE?"
+send "32768\r"
+
+expect "TERMINAL WIDTH?"
+send "\r"
+
+expect "WANT SIN-COS-TAN-ATN?"
+send "N\r"
+
+expect "OK"
+
+send "FOR I=1 TO 1000:PRINT RND(1):NEXT\r"
+
+expect {
+    "OK" { }
+    timeout { puts stderr "Timeout" }
+}
+
+send "\x05"
+expect "sim>"
+send "exit\r"
+expect eof

@@ -660,11 +660,11 @@ size_t mbf_to_string(mbf_t a, char *buf, size_t buflen) {
                 if (p == dot) {
                     /* All zeros after decimal, remove the dot too */
                     memmove(dot, e_ptr, strlen(e_ptr) + 1);
-                    len = strlen(buf);
+                    len = (int)strlen(buf);
                 } else if (p < e_ptr - 1) {
                     /* Some trailing zeros to remove */
                     memmove(p + 1, e_ptr, strlen(e_ptr) + 1);
-                    len = strlen(buf);
+                    len = (int)strlen(buf);
                 }
             }
             /* Keep E+0X / E-0X format - original BASIC uses two-digit exponents */

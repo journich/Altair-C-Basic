@@ -259,8 +259,8 @@ mbf_t mbf_from_double(double x) {
     mant *= 2.0;   /* Now 1.0 <= mant < 2.0 */
     exp--;
 
-    /* Convert to 24-bit integer mantissa */
-    uint32_t mantissa = (uint32_t)(mant * (double)(1 << 23));
+    /* Convert to 24-bit integer mantissa with rounding */
+    uint32_t mantissa = (uint32_t)(mant * (double)(1 << 23) + 0.5);
     if (mantissa >= (1u << 24)) {
         mantissa >>= 1;
         exp++;

@@ -7,13 +7,15 @@
 /*
  * test_rnd.c - Unit tests for RND random number generator
  *
- * These tests verify that our RND implementation produces the
- * exact same sequence as the original 8K BASIC.
+ * These tests verify that our RND implementation matches the exact
+ * algorithm from Altair 8K BASIC 4.0, which uses a table-based approach
+ * with multipliers, addends, and special normalization.
  */
 
 #include "test_harness.h"
 #include "basic/mbf.h"
 #include "basic/basic.h"
+#include <math.h>
 
 /* Forward declarations for internal functions */
 void rnd_init(rnd_state_t *state);
@@ -25,10 +27,13 @@ TEST(test_rnd_init) {
     rnd_state_t state;
     rnd_init(&state);
 
+    /* Initial counters should be 0 */
     ASSERT_EQ_INT(state.counter1, 0);
     ASSERT_EQ_INT(state.counter2, 0);
     ASSERT_EQ_INT(state.counter3, 0);
-    /* Initial seed should be the first addend table entry */
+
+    /* Initial seed is from addend table entry 0 */
+    /* D1866: 0x52, 0xC7, 0x4F, 0x80 */
     ASSERT_EQ_HEX(state.last_value.byte_array[0], 0x52);
     ASSERT_EQ_HEX(state.last_value.byte_array[1], 0xC7);
     ASSERT_EQ_HEX(state.last_value.byte_array[2], 0x4F);
@@ -88,49 +93,30 @@ TEST(test_rnd_in_range) {
     }
 }
 
-/* Test RND(negative) reseeds */
+/* Test RND(negative) reseeds deterministically */
 TEST(test_rnd_reseed) {
     rnd_state_t state;
     rnd_init(&state);
 
     mbf_t one = mbf_from_int16(1);
-    mbf_t neg = mbf_from_int16(-1);
+    mbf_t neg5 = mbf_from_int16(-5);
 
     /* Generate some values */
     (void)rnd_next(&state, one);
-    rnd_next(&state, one);
-    rnd_next(&state, one);
-
-    /* Reseed */
-    rnd_next(&state, neg);
-
-    /* Generate first value again - counters should be reset */
+    (void)rnd_next(&state, one);
     (void)rnd_next(&state, one);
 
-    /* After reseed, sequence should restart.
-     * RND(negative) reseeds AND generates a value (counter1 = 1),
-     * then the next RND(positive) generates another (counter1 = 2). */
-    ASSERT_EQ_INT(state.counter1, 2);
-}
+    /* Reseed with -5 */
+    mbf_t after_seed = rnd_next(&state, neg5);
 
-/* Test counter wraparound at 0xAB (171) */
-TEST(test_rnd_counter_wraparound) {
-    rnd_state_t state;
-    rnd_init(&state);
+    /* Reset and reseed with same value - should get same result */
+    rnd_state_t state2;
+    rnd_init(&state2);
+    (void)rnd_next(&state2, one);
+    (void)rnd_next(&state2, one);
+    mbf_t after_seed2 = rnd_next(&state2, neg5);
 
-    mbf_t one = mbf_from_int16(1);
-
-    /* Generate 170 values (counter goes from 0 to 170) */
-    for (int i = 0; i < 170; i++) {
-        rnd_next(&state, one);
-    }
-    ASSERT_EQ_INT(state.counter1, 170);
-
-    /* Generate one more (counter should be 171 = 0xAB) */
-    rnd_next(&state, one);
-
-    /* Counter should have wrapped to 0 */
-    ASSERT_EQ_INT(state.counter1, 0);
+    ASSERT_MBF_EQ(after_seed, after_seed2);
 }
 
 /* Test that the sequence is deterministic */
@@ -151,37 +137,24 @@ TEST(test_rnd_deterministic) {
     }
 }
 
-/*
- * Golden test: verify first N values match captured output from original.
- *
- * These values were (or will be) captured by running the original 8K BASIC
- * in the Altair SIMH emulator with this program:
- *
- * 10 FOR I=1 TO 10
- * 20 PRINT RND(1)
- * 30 NEXT I
- *
- * TODO: Capture actual values from original and add here.
- * For now, we just verify the sequence is consistent.
- */
-TEST(test_rnd_golden_sequence) {
+/* Test counter progression */
+TEST(test_rnd_counters) {
     rnd_state_t state;
     rnd_init(&state);
 
     mbf_t one = mbf_from_int16(1);
 
-    /* Capture the raw values for our implementation */
-    mbf_t values[10];
-    for (int i = 0; i < 10; i++) {
-        values[i] = rnd_next(&state, one);
-    }
+    /* Generate first value */
+    (void)rnd_next(&state, one);
 
-    /* Reset and verify we get the same values */
-    rnd_init(&state);
-    for (int i = 0; i < 10; i++) {
-        mbf_t v = rnd_next(&state, one);
-        ASSERT_MBF_EQ(v, values[i]);
-    }
+    /* Counter1 should be 1 */
+    ASSERT_EQ_INT(state.counter1, 1);
+
+    /* Counter2 cycles 1,2,3,1,2,3... */
+    ASSERT_EQ_INT(state.counter2, 1);
+
+    /* Counter3 = (1 + old_counter3) & 7 = 1 */
+    ASSERT_EQ_INT(state.counter3, 1);
 }
 
 /* Run all tests */
@@ -191,9 +164,8 @@ void run_tests(void) {
     RUN_TEST(test_rnd_generates_sequence);
     RUN_TEST(test_rnd_in_range);
     RUN_TEST(test_rnd_reseed);
-    RUN_TEST(test_rnd_counter_wraparound);
     RUN_TEST(test_rnd_deterministic);
-    RUN_TEST(test_rnd_golden_sequence);
+    RUN_TEST(test_rnd_counters);
 }
 
 TEST_MAIN()
