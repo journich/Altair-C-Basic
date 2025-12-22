@@ -117,10 +117,11 @@ OK
 ## Project Structure
 
 ```
-basic8k_c/
+Altair-C-Basic/
 ├── CMakeLists.txt          # Build configuration
 ├── LICENSE                 # MIT License
 ├── README.md               # This file
+├── TESTING.md              # Testing documentation
 ├── include/basic/
 │   ├── basic.h             # Main API and types
 │   ├── mbf.h               # MBF floating-point
@@ -152,9 +153,14 @@ basic8k_c/
 │   │   └── string.c        # String functions
 │   └── io/
 │       └── terminal.c      # Terminal handling
-└── tests/
-    ├── unit/               # Unit tests
-    └── test_harness.h      # Test framework
+├── tests/
+│   ├── unit/               # Unit tests
+│   └── test_harness.h      # Test framework
+├── compatibility_tests/
+│   ├── programs/           # BASIC test programs
+│   ├── golden/             # Expected outputs from 8080 BASIC
+│   └── scripts/            # Test harness scripts
+└── test_programs/          # Additional BASIC programs for testing
 ```
 
 ## Technical Details
@@ -217,24 +223,35 @@ The original 8K BASIC included hardware-specific features for the Altair 8800:
 - [x] Phase 5: Variables, arrays, string space
 - [x] Phase 6: Statement implementations
 - [x] Phase 7: Function implementations
-- [ ] Phase 8: Main interpreter loop
-- [ ] Phase 9: Compatibility testing
+- [x] Phase 8: Main interpreter loop
+- [x] Phase 9: Compatibility testing
 
 ## Testing
 
-The project includes comprehensive unit tests:
+The project includes comprehensive unit tests and compatibility tests against the original 8080 BASIC via SIMH emulator.
 
 ```bash
+# Unit tests
 cd build
-ctest -V
+ctest --output-on-failure
+
+# Compatibility tests (C implementation only)
+cd compatibility_tests/scripts
+./test_harness.py c-only
+
+# Full compatibility tests (requires SIMH)
+./test_harness.py test
 ```
 
 Current test coverage:
 - 21 MBF arithmetic tests
-- 8 RND sequence tests
+- 7 RND sequence tests
 - 18 Tokenizer tests
 - 14 Parser tests
 - 25 Memory management tests
+- 15 compatibility test programs
+
+For detailed testing documentation, see [TESTING.md](TESTING.md).
 
 ## License
 
