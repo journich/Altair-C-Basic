@@ -1,9 +1,0 @@
---- golden
-+++ actual
-@@ -1,5 +1 @@
--=== GOSUB/RETURN ===
--AFTER FIRST GOSUB X= 10
--AFTER SECOND GOSUB X= 20
--AFTER NESTED GOSUB X= 130
--=== END GOSUB/RETURN ===
-+

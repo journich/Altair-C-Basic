@@ -33,3 +33,6 @@ Makefile
 # Temporary files
 *.tmp
 *.bak
+
+# Generated test results
+compatibility_tests/results/
