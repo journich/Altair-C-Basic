@@ -1,0 +1,199 @@
+#!/usr/bin/expect -f
+#
+# Run a BASIC game on the original 8080 BASIC via SIMH
+# Usage: run_simh_game.exp program.bas [input_file]
+#
+# Environment variables:
+#   SIMH_DIR - Directory containing altair and run_8k.ini (default: /Users/tb/dev/NEW-BASIC/mbasic2025/4k8k/8k)
+#
+
+if {$argc < 1} {
+    puts "Usage: run_simh_game.exp program.bas \[input_file\]"
+    exit 1
+}
+
+set program_file [lindex $argv 0]
+set input_file ""
+if {$argc > 1} {
+    set input_file [lindex $argv 1]
+}
+set timeout 60
+
+# Read program content
+set fp [open $program_file r]
+set program_content [read $fp]
+close $fp
+
+# Read input if provided
+set input_lines {}
+if {$input_file ne ""} {
+    set fp [open $input_file r]
+    set input_content [read $fp]
+    close $fp
+    set input_lines [split $input_content "\n"]
+}
+set input_idx 0
+
+# Get SIMH directory from environment or use default
+if {[info exists env(SIMH_DIR)]} {
+    set simh_dir $env(SIMH_DIR)
+} else {
+    set simh_dir "/Users/tb/dev/NEW-BASIC/mbasic2025/4k8k/8k"
+}
+
+# Change to SIMH directory
+cd $simh_dir
+
+# Start SIMH
+log_user 0
+spawn altair run_8k.ini
+
+# Initialize BASIC - 8K version prompts
+expect {
+    "MEMORY SIZE?" {
+        send "32768\r"
+    }
+    timeout {
+        puts stderr "TIMEOUT waiting for MEMORY SIZE"
+        exit 1
+    }
+}
+
+expect {
+    "TERMINAL WIDTH?" {
+        send "132\r"
+    }
+    timeout {
+        puts stderr "TIMEOUT waiting for TERMINAL WIDTH"
+        exit 1
+    }
+}
+
+# 8K BASIC asks about trig functions
+expect {
+    "WANT SIN-COS-TAN-ATN?" {
+        send "Y\r"
+    }
+    timeout {
+        # Some configurations may not ask this
+    }
+}
+
+expect {
+    "OK" {
+        # Ready for program entry
+    }
+    timeout {
+        puts stderr "TIMEOUT waiting for OK"
+        exit 1
+    }
+}
+
+# Enter program lines
+# 8K BASIC echoes lines back - wait for echo before sending next
+foreach line [split $program_content "\n"] {
+    set line [string trim $line]
+    if {$line ne "" && ![regexp {^\s*$} $line]} {
+        send "$line\r"
+
+        # Extract line number and wait for echo
+        if {[regexp {^(\d+)} $line match linenum]} {
+            expect {
+                -re "\r\n" { }
+                timeout {
+                    puts stderr "Timeout waiting for echo of line $linenum"
+                }
+            }
+        }
+        # Small delay for serial buffer
+        sleep 0.15
+    }
+}
+
+# Wait for BASIC to be ready
+sleep 1.0
+
+# Run the program and capture output
+log_user 1
+send "RUN\r"
+
+# Generic game loop - respond to ? prompts with inputs
+set game_running 1
+while {$game_running} {
+    expect {
+        -re {\?[ ]*$} {
+            # INPUT prompt - send next input
+            if {$input_idx < [llength $input_lines]} {
+                set response [lindex $input_lines $input_idx]
+                set response [string trim $response]
+                incr input_idx
+                if {$response ne ""} {
+                    send "$response\r"
+                } else {
+                    # Empty line - still send empty response
+                    send "\r"
+                }
+            } else {
+                # No more inputs - send empty
+                send "\r"
+            }
+            exp_continue
+        }
+        "SO LONG FOR NOW." {
+            # HAMURABI end message
+            expect {
+                "OK" { }
+                timeout { }
+            }
+            set game_running 0
+        }
+        "NATIONAL FINK" {
+            # HAMURABI impeachment - continue to SO LONG
+            exp_continue
+        }
+        "GET YOURSELF ANOTHER STEWARD" {
+            # HAMURABI negative input quit
+            exp_continue
+        }
+        "THANKS FOR THE GAME" {
+            # Generic game end
+            expect {
+                "OK" { }
+                timeout { }
+            }
+            set game_running 0
+        }
+        "PLAY AGAIN" {
+            # Game asking for replay - send N
+            send "N\r"
+            exp_continue
+        }
+        -re "\r\nOK\r?\n" {
+            # Program ended
+            set game_running 0
+        }
+        "Break" {
+            # Program interrupted
+            set game_running 0
+        }
+        timeout {
+            # Timeout - program might have ended
+            set game_running 0
+        }
+        eof {
+            set game_running 0
+        }
+    }
+}
+
+# Wait briefly then exit SIMH
+sleep 0.5
+log_user 0
+send "\x05"
+expect {
+    "sim>" { send "exit\r" }
+    timeout { }
+}
+expect eof
+
+exit 0

@@ -1,0 +1,91 @@
+ACTION/SHOOTING GAMES - QUICK REFERENCE
+=======================================
+
+Created: 2025-12-23
+Total Games: 7
+Total Scenarios: 38
+
+SCENARIO BREAKDOWN:
+-------------------
+1. GUNNER (6 scenarios)
+   - scenario_01_first_shot_hit
+   - scenario_02_adjust_from_over
+   - scenario_03_adjust_from_under
+   - scenario_04_boundary_test
+   - scenario_05_enemy_destroys
+   - scenario_06_multiple_targets
+
+2. BOMBARDMENT (4 scenarios)
+   - scenario_01_quick_win
+   - scenario_02_systematic_search
+   - scenario_03_loss_game
+   - scenario_04_corner_positions
+
+3. DEPTHCHARGE (5 scenarios)
+   - scenario_01_direct_hit
+   - scenario_02_binary_search
+   - scenario_03_corner_hunt
+   - scenario_04_large_grid
+   - scenario_05_out_of_shots
+
+4. TARGET (5 scenarios)
+   - scenario_01_first_shot_hit
+   - scenario_02_adjust_angle
+   - scenario_03_adjust_distance
+   - scenario_04_self_destruct
+   - scenario_05_precision_shots
+
+5. ORBIT (5 scenarios)
+   - scenario_01_lucky_hit
+   - scenario_02_tracking_target
+   - scenario_03_bracketing
+   - scenario_04_timeout
+   - scenario_05_perfect_intercept
+
+6. SPLAT (6 scenarios)
+   - scenario_01_splat_too_long
+   - scenario_02_safe_early
+   - scenario_03_earth_custom
+   - scenario_04_moon_jump
+   - scenario_05_multiple_jumps
+   - scenario_06_jupiter_heavy
+
+7. LUNAR (7 scenarios)
+   - scenario_01_perfect_landing
+   - scenario_02_good_landing
+   - scenario_03_crash
+   - scenario_04_fuel_runout
+   - scenario_05_conservative
+   - scenario_06_aggressive
+   - scenario_07_damaged_landing
+
+TESTING COMMANDS:
+-----------------
+Generate golden files (if SIMH available):
+  python3 scripts/ahl_test_runner.py generate GUNNER
+  python3 scripts/ahl_test_runner.py generate BOMBARDMENT
+  python3 scripts/ahl_test_runner.py generate DEPTHCHARGE
+  python3 scripts/ahl_test_runner.py generate TARGET
+  python3 scripts/ahl_test_runner.py generate ORBIT
+  python3 scripts/ahl_test_runner.py generate SPLAT
+  python3 scripts/ahl_test_runner.py generate LUNAR
+
+Test against C interpreter:
+  python3 scripts/ahl_test_runner.py test GUNNER --c-only
+  python3 scripts/ahl_test_runner.py test --all --c-only
+
+FILE LOCATIONS:
+---------------
+Scenarios: /Users/tb/dev/Altair-C-Basic/compatibility_tests/ahl_games/scenarios/
+Games:     /Users/tb/dev/Altair-C-Basic/compatibility_tests/ahl_games/games/
+Golden:    /Users/tb/dev/Altair-C-Basic/compatibility_tests/ahl_games/golden/
+C Interp:  /Users/tb/dev/Altair-C-Basic/build/basic8k
+
+NOTES:
+------
+- rocket.bas does NOT exist - not included
+- All scenarios test specific game mechanics and edge cases
+- RND() values make exact predictions impossible without seeding
+- Scenarios demonstrate game flow and test physics calculations
+- See SCENARIOS_SUMMARY.md for detailed documentation
+

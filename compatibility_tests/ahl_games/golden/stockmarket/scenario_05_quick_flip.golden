@@ -1,0 +1,51 @@
+                              STOCK MARKET
+               CREATIVE COMPUTING  MORRISTOWN, NEW JERSEY
+
+
+
+DO YOU WANT THE INSTRUCTIONS (YES-TYPE 1, NO-TYPE 0)? 0
+
+
+
+
+STOCK                       INITIALS      PRICE/SHARE
+INT. BALLISTIC MISSILES       IBM          95.5 
+RED CROSS OF AMERICA          RCA          82 
+LICHTENSTEIN, BUMRAP & JOKE   LBJ          154.25 
+AMERICAN BANKRUPT CO.         ABC          124.25 
+CENSURED BOOKS STORE          CBS          105.25 
+
+NEW YORK STOCK EXCHANGE AVERAGE:  112.25 
+
+TOTAL STOCK ASSETS ARE   $ 0 
+TOTAL CASH ASSETS ARE    $ 10000 
+TOTAL ASSETS ARE         $ 10000 
+
+WHAT IS YOUR TRANSACTION IN
+IBM? 50
+RCA? 0
+LBJ? 0
+ABC? 0
+CBS? 0
+
+
+**********     END OF DAY'S TRADING     **********
+
+STOCK         PRICE/SHARE   HOLDINGS      VALUE         NET PRICE CHANGE
+IBM            91.5          50            4575         -4 
+RCA            78            0             0            -4 
+LBJ            150           0             0            -4.25 
+ABC            129.75        0             0             5.5 
+CBS            101.5         0             0            -3.75 
+
+
+
+NEW YORK STOCK EXCHANGE AVERAGE:  110.15 NET CHANGE-2.1 
+
+TOTAL STOCK ASSETS ARE   $ 4575 
+TOTAL CASH ASSETS ARE    $ 5177.25 
+TOTAL ASSETS ARE         $ 9752.25 
+
+DO YOU WISH TO CONTINUE (YES-TYPE 1, NO-TYPE 0)? 1
+WHAT IS YOUR TRANSACTION IN
+IBM? 

@@ -1,0 +1,30 @@
+                              STOCK MARKET
+WHAT IS YOUR TRANSACTION IN
+IBM? 0
+RCA? 25
+LBJ? 25
+ABC? 25
+CBS? 25
+
+
+**********     END OF DAY'S TRADING     **********
+
+
+STOCK         PRICE/SHARE   HOLDINGS      VALUE         NET PRICE CHANGE
+IBM            0             0             0             0 
+RCA            0             25            0             0 
+LBJ            0             25            0             0 
+ABC            0             25            0             0 
+CBS            0             25            0             0 
+
+
+
+NEW YORK STOCK EXCHANGE AVERAGE:  0 NET CHANGE 0 
+
+TOTAL STOCK ASSETS ARE   $ 0 
+TOTAL CASH ASSETS ARE    $ 0 
+TOTAL ASSETS ARE         $ 0 
+
+DO YOU WISH TO CONTINUE (YES-TYPE 1, NO-TYPE 0)? 0
+HOPE YOU HAD FUN!!
+OK

@@ -1,0 +1,30 @@
+                                  DICE
+               CREATIVE COMPUTING  MORRISTOWN, NEW JERSEY
+
+
+
+THIS PROGRAM SIMULATES THE ROLLING OF A
+PAIR OF DICE.
+YOU ENTER THE NUMBER OF TIMES YOU WANT THE COMPUTER TO
+'ROLL' THE DICE.  WATCH OUT, VERY LARGE NUMBERS TAKE
+A LONG TIME.  IN PARTICULAR, NUMBERS OVER 5000.
+
+HOW MANY ROLLS? 10
+
+TOTAL SPOTS   NUMBER OF TIMES
+ 2             0 
+ 3             0 
+ 4             1 
+ 5             0 
+ 6             4 
+ 7             2 
+ 8             0 
+ 9             1 
+ 10            1 
+ 11            0 
+ 12            1 
+
+
+TRY AGAIN? NO
+OK
+

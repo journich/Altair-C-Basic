@@ -1,0 +1,1266 @@
+{
+  "metadata": {
+    "description": "David Ahl's BASIC Computer Games - Test Registry",
+    "source": "BASIC Computer Games (1978) by David H. Ahl",
+    "last_updated": "2025-12-23",
+    "interpreter_c": "basic8k",
+    "interpreter_original": "8K BASIC via SIMH"
+  },
+  "games": {
+    "HAMURABI": {
+      "file": "hamurabi.bas",
+      "status": "tested",
+      "scenarios_count": 10,
+      "description": "Rule ancient Sumeria for 10 years, managing land, grain, and population",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "GOSUB/RETURN",
+        "FOR/NEXT",
+        "ON...GOTO",
+        "TAB",
+        "CHR$"
+      ],
+      "notes": "Complex game with multiple endings based on performance"
+    },
+    "ACEYDUCEY": {
+      "file": "aceyducey.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Card game: bet on whether next card is between two dealt cards",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "IF/THEN",
+        "FOR/NEXT",
+        "INPUT"
+      ],
+      "notes": "Simple card game, good for testing RND and game flow"
+    },
+    "AMAZIN": {
+      "file": "amazin.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Generate and print a random maze",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "PRINT"
+      ],
+      "notes": "Tests array handling and output formatting"
+    },
+    "ANIMAL": {
+      "file": "animal.bas",
+      "status": "failed",
+      "scenarios_count": 5,
+      "description": "Computer tries to guess what animal you're thinking of",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "STRING$",
+        "IF/THEN",
+        "INPUT"
+      ],
+      "notes": "Binary tree guessing game, heavy string handling"
+    },
+    "AWARI": {
+      "file": "awari.bas",
+      "status": "tested",
+      "scenarios_count": 1,
+      "description": "African stone game (Mancala variant)",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Strategy game with array manipulation"
+    },
+    "BAGELS": {
+      "file": "bagels.bas",
+      "status": "tested",
+      "scenarios_count": 2,
+      "description": "Guess a 3-digit number based on Bagels/Pico/Fermi clues",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "STRING$",
+        "FOR/NEXT",
+        "IF/THEN"
+      ],
+      "notes": "Number guessing game with string digit comparison"
+    },
+    "BANNER": {
+      "file": "banner.bas",
+      "status": "tested",
+      "scenarios_count": 6,
+      "description": "Print large banner text",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "STRING$",
+        "FOR/NEXT"
+      ],
+      "notes": "Heavy DATA/READ usage for character patterns"
+    },
+    "BASKET": {
+      "file": "basket.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Basketball simulation game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "ON...GOTO",
+        "GOSUB",
+        "FOR/NEXT"
+      ],
+      "notes": "Complex game with many decision branches"
+    },
+    "BATNUM": {
+      "file": "batnum.bas",
+      "status": "failed",
+      "scenarios_count": 5,
+      "description": "Nim-like game: take objects to leave last for opponent",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "IF/THEN",
+        "GOTO",
+        "INPUT"
+      ],
+      "notes": "Mathematical strategy game"
+    },
+    "BATTLE": {
+      "file": "battle.bas",
+      "status": "failed",
+      "scenarios_count": 2,
+      "description": "Battleship-style naval combat game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Grid-based game with coordinate input"
+    },
+    "BLACKJACK": {
+      "file": "blackjck.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Casino blackjack card game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "GOSUB",
+        "ON...GOTO"
+      ],
+      "notes": "Complex card game with betting"
+    },
+    "BOMBARD": {
+      "file": "bombard.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Artillery bombardment game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "SIN/COS"
+      ],
+      "notes": "Trigonometry-based trajectory calculation"
+    },
+    "BOUNCE": {
+      "file": "bounce.bas",
+      "status": "failed",
+      "scenarios_count": 2,
+      "description": "Bouncing ball ASCII animation",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "TAB",
+        "SIN"
+      ],
+      "notes": "Mathematical animation, tests TAB and output"
+    },
+    "BOWLING": {
+      "file": "bowling.bas",
+      "status": "tested",
+      "scenarios_count": 2,
+      "description": "Bowling game simulation",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Scoring system with strikes and spares"
+    },
+    "BOXING": {
+      "file": "boxing.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Boxing match simulation",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "ON...GOTO",
+        "GOSUB"
+      ],
+      "notes": "Turn-based combat with multiple punch types"
+    },
+    "BUG": {
+      "file": "bug.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Roll dice to draw bug parts first",
+      "uses_rnd": true,
+      "uses_input": false,
+      "features": [
+        "DATA/READ",
+        "FOR/NEXT",
+        "PRINT"
+      ],
+      "notes": "Dice-rolling game with ASCII art"
+    },
+    "BULLFIGHT": {
+      "file": "bullfight.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Bullfighting simulation",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "ON...GOTO",
+        "GOSUB",
+        "FOR/NEXT"
+      ],
+      "notes": "Action game with risk management"
+    },
+    "BUZZWORD": {
+      "file": "buzzword.bas",
+      "status": "tested",
+      "scenarios_count": 2,
+      "description": "Generate random corporate buzzword phrases",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "FOR/NEXT",
+        "PRINT"
+      ],
+      "notes": "Simple random phrase generator"
+    },
+    "CALENDAR": {
+      "file": "calendar.bas",
+      "status": "tested",
+      "scenarios_count": 1,
+      "description": "Print a calendar for any year",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "TAB",
+        "INT"
+      ],
+      "notes": "Date calculation and formatting"
+    },
+    "CHANGE": {
+      "file": "change.bas",
+      "status": "failed",
+      "scenarios_count": 6,
+      "description": "Make change for a purchase",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "INT",
+        "IF/THEN",
+        "FOR/NEXT"
+      ],
+      "notes": "Currency calculation exercise"
+    },
+    "CHEMIST": {
+      "file": "chemist.bas",
+      "status": "tested",
+      "scenarios_count": 4,
+      "description": "Chemistry experiment timing game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Reaction timing puzzle"
+    },
+    "CHIEF": {
+      "file": "chief.bas",
+      "status": "tested",
+      "scenarios_count": 4,
+      "description": "Math quiz with tribal chief theme",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Educational math game"
+    },
+    "CHOMP": {
+      "file": "chomp.bas",
+      "status": "tested",
+      "scenarios_count": 5,
+      "description": "Nim-variant with cookie grid",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Strategy game with 2D grid"
+    },
+    "CIVILWAR": {
+      "file": "civilwar.bas",
+      "status": "failed",
+      "scenarios_count": 5,
+      "description": "Civil War battle simulation",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "DIM",
+        "GOSUB"
+      ],
+      "notes": "Historical wargame simulation"
+    },
+    "COMBAT": {
+      "file": "combat.bas",
+      "status": "tested",
+      "scenarios_count": 4,
+      "description": "Combat simulation game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "GOSUB"
+      ],
+      "notes": "Turn-based combat"
+    },
+    "CRAPS": {
+      "file": "craps.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Casino craps dice game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "ON...GOTO",
+        "INT"
+      ],
+      "notes": "Dice game with betting"
+    },
+    "CUBE": {
+      "file": "cube.bas",
+      "status": "tested",
+      "scenarios_count": 5,
+      "description": "Navigate through 3D cube",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "IF/THEN"
+      ],
+      "notes": "3D navigation puzzle"
+    },
+    "DEPTHCHARGE": {
+      "file": "depthcharge.bas",
+      "status": "tested",
+      "scenarios_count": 1,
+      "description": "Hunt submarine with depth charges",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "ABS"
+      ],
+      "notes": "3D coordinate guessing game"
+    },
+    "DIAMOND": {
+      "file": "diamond.bas",
+      "status": "tested",
+      "scenarios_count": 2,
+      "description": "Print diamond patterns",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "TAB",
+        "STRING$"
+      ],
+      "notes": "Pattern printing exercise"
+    },
+    "DICE": {
+      "file": "dice.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Dice rolling simulation",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "INT",
+        "DIM"
+      ],
+      "notes": "Statistics demonstration"
+    },
+    "DIGITS": {
+      "file": "digits.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Guess the next digit in a sequence",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "DIM",
+        "IF/THEN"
+      ],
+      "notes": "Pattern recognition game"
+    },
+    "EVENWIN": {
+      "file": "evenwin.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Even Wins - Nim variant",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "GOTO"
+      ],
+      "notes": "Mathematical strategy game"
+    },
+    "FLIP": {
+      "file": "flip.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Coin flipping game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Simple probability game"
+    },
+    "FTBALL": {
+      "file": "ftball.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Football game simulation",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "ON...GOTO",
+        "GOSUB",
+        "DIM"
+      ],
+      "notes": "Complex sports simulation"
+    },
+    "FURTRADER": {
+      "file": "furtrader.bas",
+      "status": "tested",
+      "scenarios_count": 5,
+      "description": "Fur trading economic simulation",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Economic resource management"
+    },
+    "GOLF": {
+      "file": "golf.bas",
+      "status": "failed",
+      "scenarios_count": 4,
+      "description": "Golf game simulation",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "SIN/COS",
+        "GOSUB"
+      ],
+      "notes": "Physics-based sports game"
+    },
+    "GOMOKO": {
+      "file": "gomoko.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Five-in-a-row board game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Strategy board game"
+    },
+    "GUESS": {
+      "file": "guess.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Guess a number between 1-100",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Classic number guessing game"
+    },
+    "GUNNER": {
+      "file": "gunner.bas",
+      "status": "failed",
+      "scenarios_count": 6,
+      "description": "Artillery targeting game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "ABS"
+      ],
+      "notes": "Distance estimation game"
+    },
+    "HANGMAN": {
+      "file": "hangman.bas",
+      "status": "tested",
+      "scenarios_count": 5,
+      "description": "Word guessing with hangman",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "STRING$",
+        "FOR/NEXT"
+      ],
+      "notes": "Classic word game with string handling"
+    },
+    "HELLO": {
+      "file": "hello.bas",
+      "status": "tested",
+      "scenarios_count": 7,
+      "description": "Interactive conversation program",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "STRING$",
+        "IF/THEN",
+        "PRINT"
+      ],
+      "notes": "Simple interactive dialog"
+    },
+    "HEXAPAWN": {
+      "file": "hexapawn.bas",
+      "status": "failed",
+      "scenarios_count": 3,
+      "description": "Learning chess-variant game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "DIM",
+        "GOSUB"
+      ],
+      "notes": "Machine learning demonstration"
+    },
+    "HILO": {
+      "file": "hilo.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "High-Low number guessing",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Simple guessing game"
+    },
+    "HIQ": {
+      "file": "hiq.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Peg solitaire puzzle",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "DIM",
+        "GOSUB"
+      ],
+      "notes": "Logic puzzle game"
+    },
+    "HOCKEY": {
+      "file": "hockey.bas",
+      "status": "failed",
+      "scenarios_count": 2,
+      "description": "Hockey game simulation",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "ON...GOTO",
+        "GOSUB",
+        "FOR/NEXT"
+      ],
+      "notes": "Sports simulation"
+    },
+    "HORSERACE": {
+      "file": "horserace.bas",
+      "status": "pending",
+      "scenarios_count": 4,
+      "description": "Horse racing betting game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Betting and racing simulation"
+    },
+    "HURKLE": {
+      "file": "hurkle.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Find the hiding Hurkle",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Grid-based searching game"
+    },
+    "KINEMA": {
+      "file": "kinema.bas",
+      "status": "failed",
+      "scenarios_count": 1,
+      "description": "Physics kinematics quiz",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "SQR"
+      ],
+      "notes": "Educational physics problems"
+    },
+    "KING": {
+      "file": "king.bas",
+      "status": "tested",
+      "scenarios_count": 4,
+      "description": "Rule a kingdom (similar to Hamurabi)",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "GOSUB"
+      ],
+      "notes": "Resource management simulation"
+    },
+    "LETTER": {
+      "file": "letter.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Guess a letter game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "CHR$/ASC"
+      ],
+      "notes": "Simple guessing game"
+    },
+    "LIFE": {
+      "file": "life.bas",
+      "status": "tested",
+      "scenarios_count": 6,
+      "description": "Conway's Game of Life",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "STRING$"
+      ],
+      "notes": "Cellular automaton simulation"
+    },
+    "LIFE2": {
+      "file": "life2.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Game of Life variant",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "STRING$"
+      ],
+      "notes": "Alternative Life implementation"
+    },
+    "LITQUIZ": {
+      "file": "litquiz.bas",
+      "status": "tested",
+      "scenarios_count": 4,
+      "description": "Literature trivia quiz",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "FOR/NEXT",
+        "STRING$"
+      ],
+      "notes": "Educational quiz game"
+    },
+    "LOVE": {
+      "file": "love.bas",
+      "status": "tested",
+      "scenarios_count": 2,
+      "description": "Print LOVE pattern",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "FOR/NEXT",
+        "STRING$"
+      ],
+      "notes": "ASCII art printing"
+    },
+    "LUNAR": {
+      "file": "lunar.bas",
+      "status": "tested",
+      "scenarios_count": 7,
+      "description": "Lunar landing simulation",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "SQR"
+      ],
+      "notes": "Physics simulation game"
+    },
+    "MASTERMIND": {
+      "file": "mastermind.bas",
+      "status": "tested",
+      "scenarios_count": 5,
+      "description": "Code-breaking game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "STRING$"
+      ],
+      "notes": "Logic deduction game"
+    },
+    "MATHDICR": {
+      "file": "mathdice.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Math dice game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Educational math game"
+    },
+    "MUGWUMP": {
+      "file": "mugwump.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Find 4 hidden Mugwumps on grid",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "SQR"
+      ],
+      "notes": "Grid-based searching game"
+    },
+    "NAME": {
+      "file": "name.bas",
+      "status": "tested",
+      "scenarios_count": 5,
+      "description": "Name pattern printing",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "STRING$",
+        "FOR/NEXT",
+        "MID$"
+      ],
+      "notes": "String manipulation demo"
+    },
+    "NICOMA": {
+      "file": "nicoma.bas",
+      "status": "tested",
+      "scenarios_count": 5,
+      "description": "Nicomachus number guessing",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Mathematical puzzle"
+    },
+    "NIM": {
+      "file": "nim.bas",
+      "status": "failed",
+      "scenarios_count": 5,
+      "description": "Classic Nim game",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "GOTO"
+      ],
+      "notes": "Mathematical strategy game"
+    },
+    "NUMBER": {
+      "file": "number.bas",
+      "status": "failed",
+      "scenarios_count": 3,
+      "description": "Number guessing game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Simple number game"
+    },
+    "ONECHECK": {
+      "file": "onecheck.bas",
+      "status": "tested",
+      "scenarios_count": 5,
+      "description": "Checkers solitaire puzzle",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Logic puzzle"
+    },
+    "ORBIT": {
+      "file": "orbit.bas",
+      "status": "tested",
+      "scenarios_count": 5,
+      "description": "Destroy orbiting spaceship",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "SIN/COS"
+      ],
+      "notes": "Orbital mechanics game"
+    },
+    "PIZZA": {
+      "file": "pizza.bas",
+      "status": "tested",
+      "scenarios_count": 4,
+      "description": "Pizza delivery game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "DIM"
+      ],
+      "notes": "Grid navigation game"
+    },
+    "POETRY": {
+      "file": "poetry.bas",
+      "status": "failed",
+      "scenarios_count": 1,
+      "description": "Random poetry generator",
+      "uses_rnd": true,
+      "uses_input": false,
+      "features": [
+        "DATA/READ",
+        "FOR/NEXT",
+        "STRING$"
+      ],
+      "notes": "Random text generation"
+    },
+    "POKER": {
+      "file": "poker.bas",
+      "status": "tested",
+      "scenarios_count": 4,
+      "description": "Draw poker card game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "GOSUB",
+        "FOR/NEXT"
+      ],
+      "notes": "Complex card game"
+    },
+    "QUEEN": {
+      "file": "queen.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Queen chess puzzle",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "IF/THEN"
+      ],
+      "notes": "Chess puzzle"
+    },
+    "REVERSE": {
+      "file": "reverse.bas",
+      "status": "tested",
+      "scenarios_count": 5,
+      "description": "Reverse number order game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "IF/THEN"
+      ],
+      "notes": "Sorting puzzle"
+    },
+    "ROCKSCISSORS": {
+      "file": "rockscissors.bas",
+      "status": "tested",
+      "scenarios_count": 4,
+      "description": "Rock, Paper, Scissors",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "ON...GOTO",
+        "IF/THEN",
+        "FOR/NEXT"
+      ],
+      "notes": "Classic hand game"
+    },
+    "ROULETTE": {
+      "file": "roulette.bas",
+      "status": "tested",
+      "scenarios_count": 4,
+      "description": "Casino roulette",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "ON...GOTO",
+        "FOR/NEXT"
+      ],
+      "notes": "Casino betting game"
+    },
+    "RUSSIANROULETTE": {
+      "file": "russianroulette.bas",
+      "status": "pending",
+      "scenarios_count": 4,
+      "description": "Russian Roulette game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Risk/chance game"
+    },
+    "SALVO": {
+      "file": "salvo.bas",
+      "status": "failed",
+      "scenarios_count": 2,
+      "description": "Naval battle game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Grid-based combat"
+    },
+    "SINEWAVE": {
+      "file": "sinewave.bas",
+      "status": "tested",
+      "scenarios_count": 1,
+      "description": "Print sine wave pattern",
+      "uses_rnd": false,
+      "uses_input": false,
+      "features": [
+        "FOR/NEXT",
+        "TAB",
+        "SIN"
+      ],
+      "notes": "Mathematical ASCII art"
+    },
+    "SLALOM": {
+      "file": "slalom.bas",
+      "status": "failed",
+      "scenarios_count": 5,
+      "description": "Ski slalom race",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "ON...GOTO",
+        "INT"
+      ],
+      "notes": "Racing game"
+    },
+    "SLOTS": {
+      "file": "slots.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Slot machine game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "FOR/NEXT",
+        "ON...GOTO"
+      ],
+      "notes": "Casino game"
+    },
+    "SPLAT": {
+      "file": "splat.bas",
+      "status": "failed",
+      "scenarios_count": 6,
+      "description": "Falling/parachute game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "SQR"
+      ],
+      "notes": "Timing game"
+    },
+    "STARS": {
+      "file": "stars.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Guess a number with star feedback",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "STRING$"
+      ],
+      "notes": "Number guessing game"
+    },
+    "STOCK": {
+      "file": "stock.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Stock market simulation",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Economic simulation"
+    },
+    "SUPERSTARTREK": {
+      "file": "superstartrek.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Star Trek space combat game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "GOSUB",
+        "ON...GOTO",
+        "DEF FN"
+      ],
+      "notes": "Largest/most complex game in the book"
+    },
+    "TARGET": {
+      "file": "target.bas",
+      "status": "failed",
+      "scenarios_count": 5,
+      "description": "3D target shooting",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "SIN/COS",
+        "SQR"
+      ],
+      "notes": "3D geometry game"
+    },
+    "TICTACTOE": {
+      "file": "tictacto.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Tic-Tac-Toe game",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Classic board game"
+    },
+    "TOWER": {
+      "file": "tower.bas",
+      "status": "failed",
+      "scenarios_count": 4,
+      "description": "Tower of Hanoi puzzle",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "GOSUB"
+      ],
+      "notes": "Classic logic puzzle"
+    },
+    "TRAIN": {
+      "file": "train.bas",
+      "status": "tested",
+      "scenarios_count": 4,
+      "description": "Train speed math problem",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Math word problem"
+    },
+    "TRAP": {
+      "file": "trap.bas",
+      "status": "tested",
+      "scenarios_count": 3,
+      "description": "Trap the mystery number",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Binary search game"
+    },
+    "23MATCHES": {
+      "file": "23match.bas",
+      "status": "pending",
+      "scenarios_count": 0,
+      "description": "Take from 23 matches, don't take last",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "GOTO"
+      ],
+      "notes": "Nim variant"
+    },
+    "WAR": {
+      "file": "war.bas",
+      "status": "tested",
+      "scenarios_count": 2,
+      "description": "Card game War",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DIM",
+        "FOR/NEXT",
+        "IF/THEN"
+      ],
+      "notes": "Card game simulation"
+    },
+    "WEEKDAY": {
+      "file": "weekday.bas",
+      "status": "failed",
+      "scenarios_count": 4,
+      "description": "Calculate day of week for any date",
+      "uses_rnd": false,
+      "uses_input": true,
+      "features": [
+        "FOR/NEXT",
+        "IF/THEN",
+        "INT"
+      ],
+      "notes": "Date calculation"
+    },
+    "WORD": {
+      "file": "word.bas",
+      "status": "tested",
+      "scenarios_count": 5,
+      "description": "Word guessing game",
+      "uses_rnd": true,
+      "uses_input": true,
+      "features": [
+        "DATA/READ",
+        "STRING$",
+        "FOR/NEXT"
+      ],
+      "notes": "Word game"
+    }
+  },
+  "test_statistics": {
+    "total_games": 89,
+    "tested": 52,
+    "pending": 17,
+    "failed": 20
+  }
+}
