@@ -1,0 +1,274 @@
+                                HANGMAN
+               CREATIVE COMPUTING  MORRISTOWN, NEW JERSEY
+
+
+
+HERE ARE THE LETTERS YOU USED:
+
+
+----
+
+WHAT IS YOUR GUESS? E
+
+
+SORRY, THAT LETTER ISN'T IN THE WORD.
+FIRST, WE DRAW A HEAD
+XXXXXXX     
+X     X     
+X    ---    
+X   (. .)   
+X    ---    
+X           
+X           
+X           
+X           
+X           
+X           
+X           
+
+
+HERE ARE THE LETTERS YOU USED:
+E
+
+----
+
+WHAT IS YOUR GUESS? WRONG
+
+
+SORRY, THAT LETTER ISN'T IN THE WORD.
+NOW WE DRAW A BODY.
+XXXXXXX     
+X     X     
+X    ---    
+X   (. .)   
+X    ---    
+X     X     
+X     X     
+X     X     
+X     X     
+X           
+X           
+X           
+
+
+HERE ARE THE LETTERS YOU USED:
+E,WRONG
+
+----
+
+WHAT IS YOUR GUESS? T
+
+--T-
+
+WHAT IS YOUR GUESS FOR THE WORD? A
+WRONG.  TRY ANOTHER LETTER.
+
+HERE ARE THE LETTERS YOU USED:
+E,WRONG,T
+
+--T-
+
+WHAT IS YOUR GUESS? I
+
+-IT-
+
+WHAT IS YOUR GUESS FOR THE WORD? N
+WRONG.  TRY ANOTHER LETTER.
+
+HERE ARE THE LETTERS YOU USED:
+E,WRONG,T,I
+
+-IT-
+
+WHAT IS YOUR GUESS? TRAIN
+
+
+SORRY, THAT LETTER ISN'T IN THE WORD.
+NEXT WE DRAW AN ARM.
+XXXXXXX     
+X     X     
+X    ---    
+X \ (. .)   
+X  \ ---    
+X   \ X     
+X    \X     
+X     X     
+X     X     
+X           
+X           
+X           
+
+
+HERE ARE THE LETTERS YOU USED:
+E,WRONG,T,I,TRAIN
+
+-IT-
+
+WHAT IS YOUR GUESS? YES
+
+
+SORRY, THAT LETTER ISN'T IN THE WORD.
+THIS TIME IT'S THE OTHER ARM.
+XXXXXXX     
+X     X     
+X    ---    
+X \ (. .) / 
+X  \ --- /  
+X   \ X /   
+X    \X/    
+X     X     
+X     X     
+X           
+X           
+X           
+
+
+HERE ARE THE LETTERS YOU USED:
+E,WRONG,T,I,TRAIN,YES
+
+-IT-
+
+WHAT IS YOUR GUESS? NO
+
+
+SORRY, THAT LETTER ISN'T IN THE WORD.
+NOW, LET'S DRAW THE RIGHT LEG.
+XXXXXXX     
+X     X     
+X    ---    
+X \ (. .) / 
+X  \ --- /  
+X   \ X /   
+X    \X/    
+X     X     
+X     X     
+X    /      
+X   /       
+X           
+
+
+HERE ARE THE LETTERS YOU USED:
+E,WRONG,T,I,TRAIN,YES,NO
+
+-IT-
+
+WHAT IS YOUR GUESS? 
+
+
+SORRY, THAT LETTER ISN'T IN THE WORD.
+THIS TIME WE DRAW THE LEFT LEG.
+XXXXXXX     
+X     X     
+X    ---    
+X \ (. .) / 
+X  \ --- /  
+X   \ X /   
+X    \X/    
+X     X     
+X     X     
+X    / \    
+X   /   \   
+X           
+
+
+HERE ARE THE LETTERS YOU USED:
+E,WRONG,T,I,TRAIN,YES,NO
+
+-IT-
+
+WHAT IS YOUR GUESS? 
+
+
+SORRY, THAT LETTER ISN'T IN THE WORD.
+NOW WE PUT UP A HAND.
+XXXXXXX     
+X     X     
+X    ---  \ 
+X \ (. .) / 
+X  \ --- /  
+X   \ X /   
+X    \X/    
+X     X     
+X     X     
+X    / \    
+X   /   \   
+X           
+
+
+HERE ARE THE LETTERS YOU USED:
+E,WRONG,T,I,TRAIN,YES,NO
+
+-IT-
+
+WHAT IS YOUR GUESS? 
+
+
+SORRY, THAT LETTER ISN'T IN THE WORD.
+NEXT THE OTHER HAND.
+XXXXXXX     
+X     X     
+X /  ---  \ 
+X \ (. .) / 
+X  \ --- /  
+X   \ X /   
+X    \X/    
+X     X     
+X     X     
+X    / \    
+X   /   \   
+X           
+
+
+HERE ARE THE LETTERS YOU USED:
+E,WRONG,T,I,TRAIN,YES,NO
+
+-IT-
+
+WHAT IS YOUR GUESS? 
+
+
+SORRY, THAT LETTER ISN'T IN THE WORD.
+NOW WE DRAW ONE FOOT
+XXXXXXX     
+X     X     
+X /  ---  \ 
+X \ (. .) / 
+X  \ --- /  
+X   \ X /   
+X    \X/    
+X     X     
+X     X     
+X    / \    
+X   /   \   
+X        \- 
+
+
+HERE ARE THE LETTERS YOU USED:
+E,WRONG,T,I,TRAIN,YES,NO
+
+-IT-
+
+WHAT IS YOUR GUESS? 
+
+
+SORRY, THAT LETTER ISN'T IN THE WORD.
+HERE'S THE OTHER FOOT -- YOU'RE HUNG!!
+XXXXXXX     
+X     X     
+X /  ---  \ 
+X \ (. .) / 
+X  \ --- /  
+X   \ X /   
+X    \X/    
+X     X     
+X     X     
+X    / \    
+X   /   \   
+X -/     \- 
+
+
+SORRY, YOU LOSE.  THE WORD WAS WITH
+YOU MISSED THAT ONE.  DO YOU WANT ANOTHER WORD? 
+
+IT'S BEEN FUN!  BYE FOR NOW.
+OK

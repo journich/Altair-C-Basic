@@ -150,9 +150,9 @@
       "notes": "Grid-based game with coordinate input"
     },
     "BLACKJACK": {
-      "file": "blackjck.bas",
+      "file": "blackjack.bas",
       "status": "pending",
-      "scenarios_count": 0,
+      "scenarios_count": 1,
       "description": "Casino blackjack card game",
       "uses_rnd": true,
       "uses_input": true,
@@ -431,8 +431,8 @@
     },
     "DIGITS": {
       "file": "digits.bas",
-      "status": "pending",
-      "scenarios_count": 0,
+      "status": "tested",
+      "scenarios_count": 1,
       "description": "Guess the next digit in a sequence",
       "uses_rnd": true,
       "uses_input": true,
@@ -1117,8 +1117,8 @@
     },
     "SUPERSTARTREK": {
       "file": "superstartrek.bas",
-      "status": "pending",
-      "scenarios_count": 0,
+      "status": "tested",
+      "scenarios_count": 1,
       "description": "Star Trek space combat game",
       "uses_rnd": true,
       "uses_input": true,
@@ -1295,12 +1295,28 @@
       "uses_rnd": false,
       "uses_input": true,
       "scenarios_count": 1
+    },
+    "HI-LO": {
+      "file": "hi-lo.bas",
+      "description": "High-low guessing game",
+      "status": "tested",
+      "uses_rnd": true,
+      "uses_input": true,
+      "scenarios_count": 1
+    },
+    "MATHDICE": {
+      "file": "mathdice.bas",
+      "description": "Math dice game",
+      "status": "pending",
+      "uses_rnd": true,
+      "uses_input": true,
+      "scenarios_count": 1
     }
   },
   "test_statistics": {
-    "total_games": 94,
-    "tested": 56,
-    "pending": 22,
+    "total_games": 96,
+    "tested": 59,
+    "pending": 21,
     "failed": 16
   }
 }

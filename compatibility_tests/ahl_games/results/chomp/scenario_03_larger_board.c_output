@@ -1,0 +1,68 @@
+                                 CHOMP
+               CREATIVE COMPUTING  MORRISTOWN, NEW JERSEY
+
+
+
+
+THIS IS THE GAME OF CHOMP (SCIENTIFIC AMERICAN, JAN 1973)
+DO YOU WANT THE RULES (1=YES, 0=NO!)? 0
+HERE WE GO...
+
+HOW MANY PLAYERS? 2
+HOW MANY ROWS? 5
+HOW MANY COLUMNS? 7
+
+
+       1 2 3 4 5 6 7 8 9
+ 1     P * * * * * * 
+ 2     * * * * * * * 
+ 3     * * * * * * * 
+ 4     * * * * * * * 
+ 5     * * * * * * * 
+
+PLAYER 1 
+COORDINATES OF CHOMP (ROW,COLUMN)? 3,4
+
+       1 2 3 4 5 6 7 8 9
+ 1     P * * * * * * 
+ 2     * * * * * * * 
+ 3     * * * 
+ 4     * * * 
+ 5     * * * 
+
+PLAYER 2 
+COORDINATES OF CHOMP (ROW,COLUMN)? 2,3
+
+       1 2 3 4 5 6 7 8 9
+ 1     P * * * * * * 
+ 2     * * 
+ 3     * * 
+ 4     * * 
+ 5     * * 
+
+PLAYER 1 
+COORDINATES OF CHOMP (ROW,COLUMN)? 2,2
+
+       1 2 3 4 5 6 7 8 9
+ 1     P * * * * * * 
+ 2     * 
+ 3     * 
+ 4     * 
+ 5     * 
+
+PLAYER 2 
+COORDINATES OF CHOMP (ROW,COLUMN)? 1,2
+
+       1 2 3 4 5 6 7 8 9
+ 1     P 
+ 2     * 
+ 3     * 
+ 4     * 
+ 5     * 
+
+PLAYER 1 
+COORDINATES OF CHOMP (ROW,COLUMN)? 1,1
+YOU LOSE, PLAYER 1 
+
+AGAIN (1=YES, 0=NO!)? 0
+OK
