@@ -1,0 +1,136 @@
+#!/usr/bin/expect -f
+# Run HAMURABI on SIMH with scripted input
+# Usage: ./run_simh_hamurabi.exp <program_file> <input_file>
+
+if {$argc < 2} {
+    puts "Usage: $argv0 <program_file> <input_file>"
+    exit 1
+}
+
+set program_file [lindex $argv 0]
+set input_file [lindex $argv 1]
+set timeout 30
+
+# Read program file
+set fp [open $program_file r]
+set program_content [read $fp]
+close $fp
+
+# Read input file
+set fp [open $input_file r]
+set input_content [read $fp]
+close $fp
+set input_lines [split $input_content "\n"]
+set input_idx 0
+
+# Change to BASIC directory
+cd "/Users/tb/dev/NEW-BASIC/mbasic2025/4k8k/8k"
+
+# Start SIMH
+log_user 0
+spawn altair run_8k.ini
+
+# Initialize BASIC
+expect "MEMORY SIZE?"
+send "32768\r"
+
+expect "TERMINAL WIDTH?"
+send "132\r"
+
+expect "WANT SIN-COS-TAN-ATN?"
+send "Y\r"
+
+expect "OK"
+
+# Enter program lines - wait for each line to be echoed back
+# 8K BASIC echoes the line and then waits for next input (no OK for program lines)
+foreach line [split $program_content "\n"] {
+    set line [string trim $line]
+    if {$line ne "" && ![regexp {^\s*$} $line]} {
+        # Send the line character by character with small delays to avoid buffer overflow
+        # Actually, send whole line but wait for the line number to appear in echo
+        send "$line\r"
+
+        # Extract line number and wait for it to appear in echo
+        if {[regexp {^(\d+)} $line match linenum]} {
+            # Wait for the line to be echoed (look for the line number at start of line)
+            expect {
+                -re "\r\n" { }
+                timeout {
+                    puts stderr "Timeout waiting for echo of line $linenum"
+                }
+            }
+        }
+        # Small additional delay for safety
+        sleep 0.15
+    }
+}
+
+# Wait for BASIC to be ready
+sleep 1.0
+
+# Run the program and capture output
+log_user 1
+send "RUN\r"
+
+# Process game - respond to ? prompts with inputs
+set game_running 1
+while {$game_running} {
+    expect {
+        -re {\?[ ]*$} {
+            # INPUT prompt - send next input
+            if {$input_idx < [llength $input_lines]} {
+                set response [lindex $input_lines $input_idx]
+                set response [string trim $response]
+                incr input_idx
+                if {$response ne ""} {
+                    send "$response\r"
+                } else {
+                    # Empty line in input, try next
+                    exp_continue
+                }
+            } else {
+                # No more inputs - send 0
+                send "0\r"
+            }
+            exp_continue
+        }
+        "SO LONG FOR NOW." {
+            # Game ended - wait for OK prompt
+            expect {
+                "OK" { }
+                timeout { }
+            }
+            set game_running 0
+        }
+        "NATIONAL FINK" {
+            # Impeachment message - continue to SO LONG
+            exp_continue
+        }
+        "GET YOURSELF ANOTHER STEWARD" {
+            # Negative input quit - continue to SO LONG
+            exp_continue
+        }
+        "OK" {
+            # Program ended (after bell characters)
+            set game_running 0
+        }
+        timeout {
+            puts stderr "TIMEOUT during game"
+            set game_running 0
+        }
+        eof {
+            set game_running 0
+        }
+    }
+}
+
+# Wait briefly then exit SIMH
+sleep 0.5
+log_user 0
+send "\x05"
+expect {
+    "sim>" { send "exit\r" }
+    timeout { }
+}
+expect eof
