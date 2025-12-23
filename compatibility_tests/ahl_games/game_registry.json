@@ -2,7 +2,7 @@
   "metadata": {
     "description": "David Ahl's BASIC Computer Games - Test Registry",
     "source": "BASIC Computer Games (1978) by David H. Ahl",
-    "last_updated": "2025-12-23",
+    "last_updated": "2025-12-24",
     "interpreter_c": "basic8k",
     "interpreter_original": "8K BASIC via SIMH"
   },
@@ -54,7 +54,7 @@
     "ANIMAL": {
       "file": "animal.bas",
       "status": "failed",
-      "scenarios_count": 5,
+      "scenarios_count": 1,
       "description": "Computer tries to guess what animal you're thinking of",
       "uses_rnd": false,
       "uses_input": true,
@@ -124,7 +124,7 @@
     "BATNUM": {
       "file": "batnum.bas",
       "status": "failed",
-      "scenarios_count": 5,
+      "scenarios_count": 1,
       "description": "Nim-like game: take objects to leave last for opponent",
       "uses_rnd": false,
       "uses_input": true,
@@ -138,7 +138,7 @@
     "BATTLE": {
       "file": "battle.bas",
       "status": "failed",
-      "scenarios_count": 2,
+      "scenarios_count": 1,
       "description": "Battleship-style naval combat game",
       "uses_rnd": true,
       "uses_input": true,
@@ -180,7 +180,7 @@
     "BOUNCE": {
       "file": "bounce.bas",
       "status": "failed",
-      "scenarios_count": 2,
+      "scenarios_count": 1,
       "description": "Bouncing ball ASCII animation",
       "uses_rnd": false,
       "uses_input": true,
@@ -278,7 +278,7 @@
     "CHANGE": {
       "file": "change.bas",
       "status": "failed",
-      "scenarios_count": 6,
+      "scenarios_count": 1,
       "description": "Make change for a purchase",
       "uses_rnd": false,
       "uses_input": true,
@@ -334,7 +334,7 @@
     "CIVILWAR": {
       "file": "civilwar.bas",
       "status": "failed",
-      "scenarios_count": 5,
+      "scenarios_count": 1,
       "description": "Civil War battle simulation",
       "uses_rnd": true,
       "uses_input": true,
@@ -502,7 +502,7 @@
     "GOLF": {
       "file": "golf.bas",
       "status": "failed",
-      "scenarios_count": 4,
+      "scenarios_count": 1,
       "description": "Golf game simulation",
       "uses_rnd": true,
       "uses_input": true,
@@ -544,7 +544,7 @@
     "GUNNER": {
       "file": "gunner.bas",
       "status": "failed",
-      "scenarios_count": 6,
+      "scenarios_count": 1,
       "description": "Artillery targeting game",
       "uses_rnd": true,
       "uses_input": true,
@@ -586,7 +586,7 @@
     "HEXAPAWN": {
       "file": "hexapawn.bas",
       "status": "failed",
-      "scenarios_count": 3,
+      "scenarios_count": 1,
       "description": "Learning chess-variant game",
       "uses_rnd": true,
       "uses_input": true,
@@ -628,7 +628,7 @@
     "HOCKEY": {
       "file": "hockey.bas",
       "status": "failed",
-      "scenarios_count": 2,
+      "scenarios_count": 1,
       "description": "Hockey game simulation",
       "uses_rnd": true,
       "uses_input": true,
@@ -852,7 +852,7 @@
     "NIM": {
       "file": "nim.bas",
       "status": "failed",
-      "scenarios_count": 5,
+      "scenarios_count": 1,
       "description": "Classic Nim game",
       "uses_rnd": false,
       "uses_input": true,
@@ -866,7 +866,7 @@
     "NUMBER": {
       "file": "number.bas",
       "status": "failed",
-      "scenarios_count": 3,
+      "scenarios_count": 1,
       "description": "Number guessing game",
       "uses_rnd": true,
       "uses_input": true,
@@ -1019,7 +1019,7 @@
     },
     "SALVO": {
       "file": "salvo.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 2,
       "description": "Naval battle game",
       "uses_rnd": true,
@@ -1047,7 +1047,7 @@
     },
     "SLALOM": {
       "file": "slalom.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 5,
       "description": "Ski slalom race",
       "uses_rnd": true,
@@ -1076,7 +1076,7 @@
     "SPLAT": {
       "file": "splat.bas",
       "status": "failed",
-      "scenarios_count": 6,
+      "scenarios_count": 1,
       "description": "Falling/parachute game",
       "uses_rnd": true,
       "uses_input": true,
@@ -1133,7 +1133,7 @@
     "TARGET": {
       "file": "target.bas",
       "status": "failed",
-      "scenarios_count": 5,
+      "scenarios_count": 1,
       "description": "3D target shooting",
       "uses_rnd": true,
       "uses_input": true,
@@ -1160,7 +1160,7 @@
     },
     "TOWER": {
       "file": "tower.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 4,
       "description": "Tower of Hanoi puzzle",
       "uses_rnd": false,
@@ -1230,7 +1230,7 @@
     },
     "WEEKDAY": {
       "file": "weekday.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 4,
       "description": "Calculate day of week for any date",
       "uses_rnd": false,
@@ -1255,12 +1255,52 @@
         "FOR/NEXT"
       ],
       "notes": "Word game"
+    },
+    "EVENWINS": {
+      "file": "evenwins.bas",
+      "description": "Take turns picking 1-4 objects",
+      "status": "pending",
+      "uses_rnd": false,
+      "uses_input": true,
+      "scenarios_count": 5
+    },
+    "FLIPFLOP": {
+      "file": "flipflop.bas",
+      "description": "Flip X and O pattern puzzle",
+      "status": "pending",
+      "uses_rnd": false,
+      "uses_input": true,
+      "scenarios_count": 3
+    },
+    "HIGHIQ": {
+      "file": "highiq.bas",
+      "description": "Peg solitaire puzzle",
+      "status": "pending",
+      "uses_rnd": false,
+      "uses_input": true,
+      "scenarios_count": 3
+    },
+    "TICTACTOE1": {
+      "file": "tictactoe1.bas",
+      "description": "Tic-Tac-Toe game",
+      "status": "pending",
+      "uses_rnd": false,
+      "uses_input": true,
+      "scenarios_count": 3
+    },
+    "NICOMACHUS": {
+      "file": "nicomachus.bas",
+      "description": "Number guessing with math",
+      "status": "pending",
+      "uses_rnd": false,
+      "uses_input": true,
+      "scenarios_count": 1
     }
   },
   "test_statistics": {
-    "total_games": 89,
-    "tested": 52,
-    "pending": 17,
-    "failed": 20
+    "total_games": 94,
+    "tested": 56,
+    "pending": 22,
+    "failed": 16
   }
 }

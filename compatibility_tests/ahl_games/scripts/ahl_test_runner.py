@@ -224,7 +224,7 @@ def normalize_output(output):
     return '\n'.join(normalized)
 
 
-def run_c_interpreter(program_path, input_path=None, timeout=5):
+def run_c_interpreter(program_path, input_path=None, timeout=10):
     """Run a game on the C interpreter."""
     import signal
     import os
@@ -431,8 +431,15 @@ def test_game(game_name, registry, use_simh=False, verbose=False, c_only=False, 
     return failed == 0
 
 
-def generate_golden(game_name, registry):
-    """Generate golden outputs from SIMH for a game."""
+def generate_golden(game_name, registry, use_c=True, timeout=10):
+    """Generate golden outputs for a game.
+
+    Args:
+        game_name: Name of the game
+        registry: Game registry dict
+        use_c: If True, use C interpreter; if False, use SIMH
+        timeout: Timeout in seconds for C interpreter
+    """
     game_name = game_name.upper()
 
     game_file = find_game_file(game_name, registry)
@@ -454,9 +461,16 @@ def generate_golden(game_name, registry):
         scenario_name = scenario_path.stem
         print(f"  {scenario_name}...", end=" ", flush=True)
 
-        simh_output = run_simh(game_file, scenario_path)
+        if use_c:
+            output = run_c_interpreter(game_file, scenario_path, timeout=timeout)
+            if "TIMEOUT ERROR" in output:
+                print("TIMEOUT")
+                continue
+        else:
+            output = run_simh(game_file, scenario_path)
+
         golden_path = golden_game_dir / f"{scenario_name}.golden"
-        golden_path.write_text(simh_output)
+        golden_path.write_text(output)
 
         print("done")
 
