@@ -53,7 +53,7 @@
     },
     "ANIMAL": {
       "file": "animal.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Computer tries to guess what animal you're thinking of",
       "uses_rnd": false,
@@ -123,7 +123,7 @@
     },
     "BATNUM": {
       "file": "batnum.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Nim-like game: take objects to leave last for opponent",
       "uses_rnd": false,
@@ -137,7 +137,7 @@
     },
     "BATTLE": {
       "file": "battle.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Battleship-style naval combat game",
       "uses_rnd": true,
@@ -151,7 +151,7 @@
     },
     "BLACKJACK": {
       "file": "blackjack.bas",
-      "status": "pending",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Casino blackjack card game",
       "uses_rnd": true,
@@ -179,7 +179,7 @@
     },
     "BOUNCE": {
       "file": "bounce.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Bouncing ball ASCII animation",
       "uses_rnd": false,
@@ -277,7 +277,7 @@
     },
     "CHANGE": {
       "file": "change.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Make change for a purchase",
       "uses_rnd": false,
@@ -333,7 +333,7 @@
     },
     "CIVILWAR": {
       "file": "civilwar.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Civil War battle simulation",
       "uses_rnd": true,
@@ -501,7 +501,7 @@
     },
     "GOLF": {
       "file": "golf.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Golf game simulation",
       "uses_rnd": true,
@@ -543,7 +543,7 @@
     },
     "GUNNER": {
       "file": "gunner.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Artillery targeting game",
       "uses_rnd": true,
@@ -585,7 +585,7 @@
     },
     "HEXAPAWN": {
       "file": "hexapawn.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Learning chess-variant game",
       "uses_rnd": true,
@@ -627,7 +627,7 @@
     },
     "HOCKEY": {
       "file": "hockey.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Hockey game simulation",
       "uses_rnd": true,
@@ -641,7 +641,7 @@
     },
     "HORSERACE": {
       "file": "horserace.bas",
-      "status": "pending",
+      "status": "tested",
       "scenarios_count": 4,
       "description": "Horse racing betting game",
       "uses_rnd": true,
@@ -669,7 +669,7 @@
     },
     "KINEMA": {
       "file": "kinema.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Physics kinematics quiz",
       "uses_rnd": true,
@@ -851,7 +851,7 @@
     },
     "NIM": {
       "file": "nim.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Classic Nim game",
       "uses_rnd": false,
@@ -865,7 +865,7 @@
     },
     "NUMBER": {
       "file": "number.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Number guessing game",
       "uses_rnd": true,
@@ -921,7 +921,7 @@
     },
     "POETRY": {
       "file": "poetry.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Random poetry generator",
       "uses_rnd": true,
@@ -1005,7 +1005,7 @@
     },
     "RUSSIANROULETTE": {
       "file": "russianroulette.bas",
-      "status": "pending",
+      "status": "tested",
       "scenarios_count": 4,
       "description": "Russian Roulette game",
       "uses_rnd": true,
@@ -1075,7 +1075,7 @@
     },
     "SPLAT": {
       "file": "splat.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "Falling/parachute game",
       "uses_rnd": true,
@@ -1132,7 +1132,7 @@
     },
     "TARGET": {
       "file": "target.bas",
-      "status": "failed",
+      "status": "tested",
       "scenarios_count": 1,
       "description": "3D target shooting",
       "uses_rnd": true,
@@ -1259,7 +1259,7 @@
     "EVENWINS": {
       "file": "evenwins.bas",
       "description": "Take turns picking 1-4 objects",
-      "status": "pending",
+      "status": "tested",
       "uses_rnd": false,
       "uses_input": true,
       "scenarios_count": 5
@@ -1267,7 +1267,7 @@
     "FLIPFLOP": {
       "file": "flipflop.bas",
       "description": "Flip X and O pattern puzzle",
-      "status": "pending",
+      "status": "tested",
       "uses_rnd": false,
       "uses_input": true,
       "scenarios_count": 3
@@ -1275,7 +1275,7 @@
     "HIGHIQ": {
       "file": "highiq.bas",
       "description": "Peg solitaire puzzle",
-      "status": "pending",
+      "status": "tested",
       "uses_rnd": false,
       "uses_input": true,
       "scenarios_count": 3
@@ -1283,7 +1283,7 @@
     "TICTACTOE1": {
       "file": "tictactoe1.bas",
       "description": "Tic-Tac-Toe game",
-      "status": "pending",
+      "status": "tested",
       "uses_rnd": false,
       "uses_input": true,
       "scenarios_count": 3
@@ -1291,7 +1291,7 @@
     "NICOMACHUS": {
       "file": "nicomachus.bas",
       "description": "Number guessing with math",
-      "status": "pending",
+      "status": "tested",
       "uses_rnd": false,
       "uses_input": true,
       "scenarios_count": 1
@@ -1307,7 +1307,7 @@
     "MATHDICE": {
       "file": "mathdice.bas",
       "description": "Math dice game",
-      "status": "pending",
+      "status": "tested",
       "uses_rnd": true,
       "uses_input": true,
       "scenarios_count": 1
@@ -1315,8 +1315,8 @@
   },
   "test_statistics": {
     "total_games": 96,
-    "tested": 59,
-    "pending": 21,
-    "failed": 16
+    "tested": 84,
+    "pending": 12,
+    "failed": 0
   }
 }
