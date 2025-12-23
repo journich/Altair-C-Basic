@@ -151,12 +151,11 @@ void io_print_number(basic_state_t *state, mbf_t value) {
 
 /*
  * Print TAB function - move to specified column.
+ * In 8K BASIC, TAB uses 0-based indexing: TAB(0) is first column,
+ * TAB(5) means print 5 spaces then the next character.
  */
 void io_tab(basic_state_t *state, int column) {
     if (!state) return;
-
-    /* Column is 0-based internally but 1-based in BASIC */
-    column--;
 
     if (column < 0) column = 0;
     if (column >= state->terminal_width) column = state->terminal_width - 1;
