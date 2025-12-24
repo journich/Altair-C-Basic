@@ -36,3 +36,12 @@ Makefile
 
 # Generated test results
 compatibility_tests/results/
+
+# Downloaded game files (fetched from coding-horror/basic-computer-games)
+# These are auto-downloaded at test time, not stored in repo
+compatibility_tests/ahl_games/games/*.bas
+
+# Test result output files (regenerated on each run)
+compatibility_tests/ahl_games/results/**/*.c_output
+compatibility_tests/ahl_games/results/**/*.simh_output
+compatibility_tests/ahl_games/results/**/*.diff

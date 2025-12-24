@@ -13,7 +13,8 @@
       "number": 1,
       "file": "aceyducey.bas",
       "description": "Card game: bet on whether next card is between two dealt cards",
-      "status": "tested"
+      "status": "failed",
+      "scenarios_count": 3
     },
     "AMAZING": {
       "number": 2,
@@ -270,7 +271,8 @@
       "number": 43,
       "file": "hamurabi.bas",
       "description": "Rule ancient Sumeria for 10 years",
-      "status": "tested"
+      "status": "failed",
+      "scenarios_count": 10
     },
     "HANGMAN": {
       "number": 44,
@@ -539,10 +541,10 @@
       "status": "tested",
       "scenarios_count": 1
     },
-    "3DTICTACTOE": {
+    "QUBIT": {
       "number": 88,
-      "file": "3dtictactoe.bas",
-      "description": "3D Tic-Tac-Toe game",
+      "file": "qubit.bas",
+      "description": "3D Tic-Tac-Toe (Qubit) game",
       "status": "tested",
       "scenarios_count": 1
     },
@@ -598,8 +600,8 @@
   },
   "test_statistics": {
     "total_games": 96,
-    "tested": 96,
+    "tested": 94,
     "pending": 0,
-    "failed": 0
+    "failed": 2
   }
 }
