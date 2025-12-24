@@ -1,0 +1,8 @@
+SYNONYM - Word Synonym Guessing Game
+
+A vocabulary drill game where players must provide synonyms for given words.
+The game presents 10 different words and asks for a valid synonym of each.
+Uses deterministic RND for reproducible word selection order.
+
+Scenario 01: Complete all 10 words correctly on first try.
+Word order with deterministic RND: MODEL, SMALL, FIRST, STOP, PAIN, PUSH, RED, HOUSE, PIT, SIMILAR

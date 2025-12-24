@@ -1,0 +1,211 @@
+
+MICROSOFT BASIC REV. 4.0 - ALTAIR VERSION
+[8K VERSION]
+COPYRIGHT 1976 BY MICROSOFT
+C VERSION COPYRIGHT 2025 BY TIM BUCHALKA
+
+60139 BYTES FREE
+
+                                FOOTBALL
+               CREATIVE COMPUTING  MORRISTOWN, NEW JERSEY
+
+
+
+PRESENTING N.F.U. FOOTBALL (NO FORTRAN USED)
+
+
+DO YOU WANT INSTRUCTIONS? NO
+
+PLEASE INPUT SCORE LIMIT ON GAME? 7
+TEAM 1 PLAY CHART
+NO.      PLAY
+ 17   PITCHOUT
+ 8    TRIPLE REVERSE
+ 4    DRAW
+ 14   QB SNEAK
+ 19   END AROUND
+ 3    DOUBLE REVERSE
+ 10   LEFT SWEEP
+ 1    RIGHT SWEEP
+ 7    OFF TACKLE
+ 11   WISHBONE OPTION
+ 15   FLARE PASS
+ 9    SCREEN PASS
+ 5    ROLL OUT OPTION
+ 20   RIGHT CURL
+ 13   LEFT CURL
+ 18   WISHBONE OPTION
+ 16   SIDELINE PASS
+ 2    HALF-BACK OPTION
+ 12   RAZZLE-DAZZLE
+ 6    BOMB!!!!
+
+TEAR OFF HERE----------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+TEAM 2 PLAY CHART
+NO.      PLAY
+ 20   PITCHOUT
+ 2    TRIPLE REVERSE
+ 17   DRAW
+ 5    QB SNEAK
+ 8    END AROUND
+ 18   DOUBLE REVERSE
+ 12   LEFT SWEEP
+ 11   RIGHT SWEEP
+ 1    OFF TACKLE
+ 4    WISHBONE OPTION
+ 19   FLARE PASS
+ 14   SCREEN PASS
+ 10   ROLL OUT OPTION
+ 7    RIGHT CURL
+ 9    LEFT CURL
+ 15   WISHBONE OPTION
+ 6    SIDELINE PASS
+ 13   HALF-BACK OPTION
+ 16   RAZZLE-DAZZLE
+ 3    BOMB!!!!
+
+TEAR OFF HERE----------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+TEAM 1 [0   10   20   30   40   50   60   70   80   90   100] TEAM 2
+
+TEAM 1 DEFENDS 0 YD GOAL -- TEAM 2 DEFENDS 100 YD GOAL.
+
+THE COIN IS FLIPPED
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+TEAM 1 RECEIVES KICK-OFF
+BALL WENT 47 YARDS.  NOW ON 13 
+           --->
+TEAM 1 [0   10   20   30   40   50   60   70   80   90   100] TEAM 2
+
+TEAM 1 DO YOU WANT TO RUNBACK? NO
+========================================================================
+
+TEAM 1 DOWN 1 ON 13 
+                            10 YARDS TO 1ST DOWN
+           --->
+TEAM 1 [0   10   20   30   40   50   60   70   80   90   100] TEAM 2
+
+INPUT OFFENSIVE PLAY, DEFENSIVE PLAY? 1,1
+
+THE BALL WAS RUN
+
+NET YARDS GAINED ON DOWN 1 ARE  1 
+========================================================================
+
+TEAM 1 DOWN 2 ON 14 
+                            9 YARDS TO 1ST DOWN
+            --->
+TEAM 1 [0   10   20   30   40   50   60   70   80   90   100] TEAM 2
+
+INPUT OFFENSIVE PLAY, DEFENSIVE PLAY? 1,1
+
+THE BALL WAS RUN
+
+NET YARDS GAINED ON DOWN 2 ARE -1 
+========================================================================
+
+TEAM 1 DOWN 3 ON 13 
+                            10 YARDS TO 1ST DOWN
+           --->
+TEAM 1 [0   10   20   30   40   50   60   70   80   90   100] TEAM 2
+
+INPUT OFFENSIVE PLAY, DEFENSIVE PLAY? 1,1
+
+THE BALL WAS RUN
+
+NET YARDS GAINED ON DOWN 3 ARE  2 
+========================================================================
+
+TEAM 1 DOWN 4 ON 15 
+                            8 YARDS TO 1ST DOWN
+            --->
+TEAM 1 [0   10   20   30   40   50   60   70   80   90   100] TEAM 2
+
+DOES TEAM 1 WANT TO PUNT? NO
+DOES TEAM 1 WANT TO ATTEMPT A FIELD GOAL? NO
+INPUT OFFENSIVE PLAY, DEFENSIVE PLAY? 1,1
+
+THE BALL WAS RUN
+
+NET YARDS GAINED ON DOWN 4 ARE  4 
+
+CONVERSION UNSUCCESSFUL TEAM 1 
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+========================================================================
+
+TEAM 2 DOWN 1 ON 19 
+                            10 YARDS TO 1ST DOWN
+                 <---
+TEAM 1 [0   10   20   30   40   50   60   70   80   90   100] TEAM 2
+
+INPUT OFFENSIVE PLAY, DEFENSIVE PLAY? 1,1
+
+THE BALL WAS RUN
+
+NET YARDS GAINED ON DOWN 1 ARE  0 
+
+** LOSS OF POSSESSION FROM TEAM 2 TO TEAM 1 
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+TEAM 1 DO YOU WANT TO RUNBACK? 1,1
+TEAM 1 DO YOU WANT TO RUNBACK? 1,1
+TEAM 1 DO YOU WANT TO RUNBACK? NO
+========================================================================
+
+TEAM 1 DOWN 1 ON 19 
+                            10 YARDS TO 1ST DOWN
+              --->
+TEAM 1 [0   10   20   30   40   50   60   70   80   90   100] TEAM 2
+
+INPUT OFFENSIVE PLAY, DEFENSIVE PLAY? NO
+ILLEGAL PLAY NUMBER, CHECK AND
+INPUT OFFENSIVE PLAY, DEFENSIVE PLAY? 1,1
+
+THE BALL WAS RUN
+
+NET YARDS GAINED ON DOWN 1 ARE  4 
+
+** LOSS OF POSSESSION FROM TEAM 1 TO TEAM 2 
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+TEAM 2 DO YOU WANT TO RUNBACK? YES
+
+RUNBACK TEAM 2  30 YARDS
+
+TOUCHDOWN BY TEAM 2 *********************YEA TEAM
+EXTRA POINT GOOD
+
+TEAM 1 SCORE IS 0 
+TEAM 2 SCORE IS 7 
+
+TEAM 2 WINS*******************
+OK

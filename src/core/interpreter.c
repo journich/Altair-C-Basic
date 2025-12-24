@@ -1495,6 +1495,41 @@ static basic_error_t execute_statement(basic_state_t *state,
                 }
                 SKIP_EXTRA_VAR_CHARS();  /* Skip remaining chars in long var names */
 
+                /* Check for array subscript */
+                int16_t idx1 = 0, idx2 = -1;
+                bool is_array = false;
+                if (pos < len && tokenized[pos] == '(') {
+                    is_array = true;
+                    pos++;  /* Skip ( */
+
+                    basic_error_t err;
+                    size_t consumed;
+                    mbf_t idx1_val = eval_expression(state, tokenized + pos, len - pos,
+                                                     &consumed, &err);
+                    if (err != ERR_NONE) return err;
+                    pos += consumed;
+
+                    bool overflow;
+                    idx1 = mbf_to_int16(idx1_val, &overflow);
+                    if (overflow) return ERR_BS;
+
+                    /* Check for second dimension */
+                    if (pos < len && tokenized[pos] == ',') {
+                        pos++;
+                        mbf_t idx2_val = eval_expression(state, tokenized + pos, len - pos,
+                                                         &consumed, &err);
+                        if (err != ERR_NONE) return err;
+                        pos += consumed;
+                        idx2 = mbf_to_int16(idx2_val, &overflow);
+                        if (overflow) return ERR_BS;
+                    }
+
+                    if (pos >= len || tokenized[pos] != ')') {
+                        return ERR_SN;
+                    }
+                    pos++;  /* Skip ) */
+                }
+
                 /* Check for string variable */
                 if (pos < len && tokenized[pos] == '$') {
                     pos++;  /* Skip $ */
@@ -1508,7 +1543,15 @@ static basic_error_t execute_statement(basic_state_t *state,
 
                     /* Create string from this portion of input */
                     string_desc_t desc = string_create_len(state, input_ptr, (uint8_t)val_len);
-                    basic_error_t err = stmt_let_string(state, var_name, desc);
+                    basic_error_t err;
+                    if (is_array) {
+                        if (!array_set_string(state, var_name, idx1, idx2, desc)) {
+                            return ERR_BS;
+                        }
+                        err = ERR_NONE;
+                    } else {
+                        err = stmt_let_string(state, var_name, desc);
+                    }
                     if (err != ERR_NONE) return err;
 
                     /* Advance input pointer past this value and comma */
@@ -1522,7 +1565,15 @@ static basic_error_t execute_statement(basic_state_t *state,
                         value = MBF_ZERO;
                     }
 
-                    basic_error_t err = stmt_let_numeric(state, var_name, value);
+                    basic_error_t err;
+                    if (is_array) {
+                        if (!array_set_numeric(state, var_name, idx1, idx2, value)) {
+                            return ERR_BS;
+                        }
+                        err = ERR_NONE;
+                    } else {
+                        err = stmt_let_numeric(state, var_name, value);
+                    }
                     if (err != ERR_NONE) return err;
 
                     /* Advance input pointer past this value and comma */

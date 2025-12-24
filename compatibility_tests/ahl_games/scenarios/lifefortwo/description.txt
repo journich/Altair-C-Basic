@@ -1,0 +1,8 @@
+LIFEFORTWO - Conway's Life for Two Players
+
+Two-player competitive game based on Conway's Game of Life.
+Each player starts with 3 pieces and places one additional piece per turn.
+The game simulates Life generations after each round of moves.
+The player whose pieces survive while eliminating the opponent wins.
+
+Scenario 01: Complete game where Player 2 wins by surviving while Player 1's pieces are eliminated.
